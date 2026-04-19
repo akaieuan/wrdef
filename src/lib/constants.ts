@@ -1,0 +1,11 @@
+export const WORD_LEN = 5;
+export const MAX_GUESSES = 6;
+export const BONUS_TIME_SECONDS = 90;
+export const TIME_BONUS_CAP_SECONDS = 60;
+export const SOLVE_POINTS_BY_GUESS = [500, 400, 300, 200, 100, 50];
+export const TIME_BONUS_MULTIPLIER = 1;
+export const BONUS_KEYWORD_POINTS = 100;
+export const HINT_COST = 50;
+export const LEADERBOARD_KEY = "wrdle:leaderboard:v1";
+export const LEADERBOARD_MAX_ENTRIES = 100;
+export const LEADERBOARD_TOP_N = 10;

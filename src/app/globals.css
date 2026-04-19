@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+:root,
+:root[data-theme="light"] {
+  --bg: #FBFBFD;
+  --surface: #FFFFFF;
+  --surface-tint: #F3F6F2;
+  --text: #1D1D1F;
+  --text-muted: #86868B;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --accent: #7FA069;
+  --accent-soft: #EDF3E5;
+  --accent-text: #FFFFFF;
+  --tile-correct: #5EAA7B;
+  --tile-present: #D4A84B;
+  --tile-absent: #5A5A5F;
+  --tile-empty-border: rgba(0, 0, 0, 0.12);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.08);
+}
+
+:root[data-theme="dark"] {
+  --bg: #0A0A0B;
+  --surface: #141416;
+  --surface-tint: #15201A;
+  --text: #F5F5F7;
+  --text-muted: #9A9AA2;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --accent: #A5C48C;
+  --accent-soft: rgba(165, 196, 140, 0.14);
+  --accent-text: #0A0A0B;
+  --tile-empty-border: rgba(255, 255, 255, 0.14);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-tint: var(--surface-tint);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
+  --color-tile-correct: var(--tile-correct);
+  --color-tile-present: var(--tile-present);
+  --color-tile-absent: var(--tile-absent);
+  --color-tile-empty-border: var(--tile-empty-border);
+  --font-sans: var(--font-inter), "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --radius-tile: 8px;
+  --radius-card: 14px;
+  --radius-pill: 999px;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-inter), "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+button {
+  font-family: inherit;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.2; }
+}
+
+.animate-shake {
+  animation: shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shake { animation: none; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
