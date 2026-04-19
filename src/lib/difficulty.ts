@@ -105,11 +105,19 @@ function buildSentenceChoices(
     seen.add(ex);
   }
 
-  if (candidates.length < 2) return undefined;
+  // Drop distractors whose source sense is too close to the picked sense —
+  // when senses are near-synonyms (e.g. weary "tired from effort" vs
+  // "patience exhausted"), the example sentences are all plausible uses, so
+  // the round has no single defensible answer. Better to skip than mislead.
+  const usable = candidates.filter(
+    (c) => !sensesTooSimilar(picked.text, c.sourceDefinition),
+  );
+
+  if (usable.length < 2) return undefined;
 
   // Prefer distractors of a similar length so one option doesn't stand out as
   // obviously different. Cheap proxy: sort by absolute length delta, take 2.
-  const byCloseness = [...candidates].sort(
+  const byCloseness = [...usable].sort(
     (a, b) =>
       Math.abs(a.text.length - correctText.length) -
       Math.abs(b.text.length - correctText.length),
@@ -168,4 +176,56 @@ export function poolForDifficulty(
     return classifyDifficulty(e) === difficulty;
   });
   return filtered.length >= 20 ? filtered : pool;
+}
+
+/**
+ * Two dictionary definitions are "too similar" when they overlap enough on
+ * content words that sentence examples from one sense could plausibly fit the
+ * other. Jaccard on stemmed content tokens, with a floor of 2 shared tokens
+ * so short defs don't trip on a single coincidental match.
+ *
+ * Threshold (0.2 Jaccard + 2 shared) tuned to reject near-synonym senses
+ * like weary "exhausted by toil" vs weary "patience exhausted; sick", while
+ * keeping genuinely distinct senses like run "move swiftly" vs run "manage".
+ */
+function sensesTooSimilar(a: string, b: string): boolean {
+  const ta = contentTokens(a);
+  const tb = contentTokens(b);
+  if (ta.size === 0 || tb.size === 0) return false;
+
+  let shared = 0;
+  for (const t of ta) if (tb.has(t)) shared++;
+  if (shared < 2) return false;
+
+  const jaccard = shared / (ta.size + tb.size - shared);
+  return jaccard >= 0.2;
+}
+
+const SENSE_STOPWORDS = new Set([
+  "a","an","the","and","or","but","of","to","in","on","at","by","for","with",
+  "as","is","are","was","were","be","been","being","have","has","had","having",
+  "do","does","did","done","not","no","one","ones","that","this","these","those",
+  "which","who","whom","whose","what","some","any","all","each","every","other",
+  "another","such","it","its","he","she","they","them","we","us","you","i",
+  "my","your","his","her","their","our","from","into","onto","off","out","up",
+  "down","over","under","so","than","then","if","when","while","especially",
+  "usually","often","very","just","also","only","own","about","used","use",
+]);
+
+function contentTokens(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const raw of text.toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/)) {
+    if (raw.length < 2 || SENSE_STOPWORDS.has(raw)) continue;
+    out.add(stemToken(raw));
+  }
+  return out;
+}
+
+function stemToken(w: string): string {
+  let s = w;
+  if (s.endsWith("ing") && s.length > 4) s = s.slice(0, -3);
+  else if (s.endsWith("ed") && s.length > 3) s = s.slice(0, -2);
+  else if (s.endsWith("s") && s.length > 3) s = s.slice(0, -1);
+  if (s.endsWith("e") && s.length > 3) s = s.slice(0, -1);
+  return s;
 }
