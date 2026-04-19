@@ -19,6 +19,8 @@ export type GameState = {
   bonusSubmittedAt: number | null;
   hintedBlanks: number[];
   invalidShakeKey: number;
+  lifelineUsed: boolean;
+  lifelineGrantedExtra: boolean;
 };
 
 export type GameAction =
@@ -31,6 +33,10 @@ export type GameAction =
   | { type: "SUBMIT_BONUS"; answers: string[] }
   | { type: "FINISH_BONUS" }
   | { type: "SKIP_BONUS" }
+  | { type: "OPEN_LIFELINE" }
+  | { type: "DECLINE_LIFELINE" }
+  | { type: "LIFELINE_SUCCESS" }
+  | { type: "LIFELINE_FAIL" }
   | { type: "RESET" };
 
 function initialState(): GameState {
@@ -48,7 +54,13 @@ function initialState(): GameState {
     bonusSubmittedAt: null,
     hintedBlanks: [],
     invalidShakeKey: 0,
+    lifelineUsed: false,
+    lifelineGrantedExtra: false,
   };
+}
+
+function maxGuesses(state: GameState): number {
+  return MAX_GUESSES + (state.lifelineGrantedExtra ? 1 : 0);
 }
 
 function isLetter(key: string): boolean {
@@ -64,6 +76,32 @@ function reducer(state: GameState, action: GameAction): GameState {
         target: action.target,
         bonusAnswers: new Array(action.target.definition.blanks.length).fill(""),
       };
+    }
+
+    case "OPEN_LIFELINE": {
+      if (state.phase !== "lifeline_offer") return state;
+      return { ...state, phase: "lifeline" };
+    }
+
+    case "DECLINE_LIFELINE": {
+      if (state.phase !== "lifeline_offer" && state.phase !== "lifeline")
+        return state;
+      return { ...state, phase: "lost", lifelineUsed: true };
+    }
+
+    case "LIFELINE_SUCCESS": {
+      if (state.phase !== "lifeline" || !state.target) return state;
+      return {
+        ...state,
+        phase: "playing",
+        lifelineUsed: true,
+        lifelineGrantedExtra: true,
+      };
+    }
+
+    case "LIFELINE_FAIL": {
+      if (state.phase !== "lifeline") return state;
+      return { ...state, phase: "lost", lifelineUsed: true };
     }
 
     case "KEY": {
@@ -113,7 +151,7 @@ function reducer(state: GameState, action: GameAction): GameState {
       const nextEvals = [...state.evaluations, evaluation];
       const nextKeys = computeKeyStates(nextGuesses, nextEvals);
       const solved = guess === state.target.word;
-      const outOfGuesses = nextGuesses.length >= MAX_GUESSES;
+      const outOfGuesses = nextGuesses.length >= maxGuesses(state);
       const now = Date.now();
       // If the player took any hints, they forfeit the bonus round — go straight
       // to the reveal / results. Clean solves still earn the fill-in-the-blanks.
@@ -124,7 +162,9 @@ function reducer(state: GameState, action: GameAction): GameState {
           ? "bonus"
           : "results"
         : outOfGuesses
-          ? "lost"
+          ? state.lifelineUsed
+            ? "lost"
+            : "lifeline_offer"
           : "playing";
       return {
         ...state,
@@ -207,6 +247,19 @@ export function useGame() {
   );
   const finishBonus = useCallback(() => dispatch({ type: "FINISH_BONUS" }), []);
   const skipBonus = useCallback(() => dispatch({ type: "SKIP_BONUS" }), []);
+  const openLifeline = useCallback(() => dispatch({ type: "OPEN_LIFELINE" }), []);
+  const declineLifeline = useCallback(
+    () => dispatch({ type: "DECLINE_LIFELINE" }),
+    [],
+  );
+  const lifelineSuccess = useCallback(
+    () => dispatch({ type: "LIFELINE_SUCCESS" }),
+    [],
+  );
+  const lifelineFail = useCallback(
+    () => dispatch({ type: "LIFELINE_FAIL" }),
+    [],
+  );
   const reset = useCallback(() => dispatch({ type: "RESET" }), []);
 
   return {
@@ -220,6 +273,10 @@ export function useGame() {
     submitBonus,
     finishBonus,
     skipBonus,
+    openLifeline,
+    declineLifeline,
+    lifelineSuccess,
+    lifelineFail,
     reset,
   };
 }

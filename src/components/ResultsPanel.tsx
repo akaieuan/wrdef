@@ -1,14 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { Blank, WordEntry } from "@/types";
 import { Definition } from "./Definition";
 import { computeScore } from "@/lib/scoring";
-import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { useRevealAnimation } from "@/hooks/useRevealAnimation";
-import { InitialsInput } from "./InitialsInput";
 
 type Props = {
   target: WordEntry;
@@ -28,17 +25,12 @@ export function ResultsPanel({
   guessCount,
   didSolve,
   elapsedSeconds,
-  bonusTimeSeconds,
   bonusAnswers,
   bonusCompleted,
   hintsUsed,
   hintedIndices,
   onPlayAgain,
 }: Props) {
-  const { add, qualifies } = useLeaderboard();
-  const [initials, setInitials] = useState("");
-  const [saved, setSaved] = useState(false);
-
   const blanks: Blank[] = target.definition.blanks;
 
   const correctFlags = useMemo(
@@ -58,43 +50,7 @@ export function ResultsPanel({
     hintCount: hintsUsed,
   });
 
-  const totalTimeSeconds = elapsedSeconds + (bonusCompleted ? bonusTimeSeconds : 0);
-
-  const eligible =
-    didSolve &&
-    qualifies({
-      timeSeconds: elapsedSeconds,
-      points: score.total,
-      totalTimeSeconds,
-      bonusCompleted,
-      bonusCorrectCount: bonusCorrect,
-      blanksTotal: blanks.length,
-    });
-
-  // Run reveal animation whenever the panel mounts. We play it whether solved
-  // or not — on a loss, seeing the answers still completes the loop.
   const { progress, isDone } = useRevealAnimation(blanks, hintedIndices, true);
-
-  const handleSave = () => {
-    if (!eligible) return;
-    const clean = initials.trim().toUpperCase();
-    if (clean.length === 0) return;
-    add({
-      id: crypto.randomUUID(),
-      initials: clean.padEnd(4, "-").slice(0, 4),
-      word: target.word,
-      occurrence: target.occurrence,
-      timeSeconds: elapsedSeconds,
-      totalTimeSeconds,
-      points: score.total,
-      guessCount,
-      bonusCompleted,
-      bonusCorrectCount: bonusCorrect,
-      blanksTotal: blanks.length,
-      createdAt: new Date().toISOString(),
-    });
-    setSaved(true);
-  };
 
   return (
     <motion.div
@@ -153,46 +109,13 @@ export function ResultsPanel({
         </AnimatePresence>
 
         <AnimatePresence>
-          {isDone && eligible && !saved && (
-            <motion.div
-              key="save"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-              className="mt-5 rounded-xl border border-[color:var(--accent)]/30 bg-[color:var(--accent-soft)] p-4"
-            >
-              <p className="text-center text-[13px] font-semibold text-[color:var(--text)]">
-                You made the leaderboard.
-              </p>
-              <div className="mt-3">
-                <InitialsInput value={initials} onChange={setInitials} />
-              </div>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={initials.trim().length === 0}
-                className="mt-3 flex h-9 w-full items-center justify-center rounded-lg bg-[color:var(--accent)] text-[12px] font-semibold text-[color:var(--accent-text)] transition-transform duration-150 hover:scale-[1.02] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Save
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {saved && (
-          <p className="mt-5 text-center text-[13px] font-medium text-[color:var(--accent)]">
-            Saved to leaderboard.
-          </p>
-        )}
-
-        <AnimatePresence>
           {isDone && (
             <motion.div
               key="cta"
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.15 }}
-              className="mt-6 flex flex-col items-center gap-1.5"
+              className="mt-6 flex justify-center"
             >
               <button
                 type="button"
@@ -201,12 +124,6 @@ export function ResultsPanel({
               >
                 Play again
               </button>
-              <Link
-                href="/leaderboard"
-                className="text-[12px] font-medium text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--text)]"
-              >
-                View leaderboard
-              </Link>
             </motion.div>
           )}
         </AnimatePresence>

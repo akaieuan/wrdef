@@ -116,7 +116,6 @@ export const BonusRound = forwardRef<BonusRoundHandle, Props>(function BonusRoun
 
   return (
     <motion.div
-      layoutId="definition-card"
       className="mx-auto flex w-full max-w-md flex-col"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}

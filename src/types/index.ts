@@ -26,27 +26,7 @@ export type Phase =
   | "playing"
   | "won"
   | "lost"
+  | "lifeline_offer"
+  | "lifeline"
   | "bonus"
   | "results";
-
-export type LeaderboardEntry = {
-  id: string;
-  initials: string;
-  word: string;
-  occurrence: number;
-  timeSeconds: number;
-  totalTimeSeconds?: number;
-  points: number;
-  guessCount: number;
-  bonusCompleted: boolean;
-  bonusCorrectCount?: number;
-  blanksTotal?: number;
-  createdAt: string;
-};
-
-export type LeaderboardStore = {
-  version: 1;
-  entries: LeaderboardEntry[];
-};
-
-export type LeaderboardView = "fastest" | "points" | "wrdef";

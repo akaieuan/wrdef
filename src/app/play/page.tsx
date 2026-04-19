@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { BonusRound, type BonusRoundHandle } from "@/components/BonusRound";
 import { DefinitionPanel } from "@/components/DefinitionPanel";
 import { Grid } from "@/components/Grid";
 import { HintButton } from "@/components/HintButton";
 import { Keyboard } from "@/components/Keyboard";
+import { LifelineOffer } from "@/components/LifelineOffer";
+import { LifelineRound, type LifelineRoundHandle } from "@/components/LifelineRound";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Toast } from "@/components/Toast";
@@ -17,6 +19,8 @@ import { usePhysicalKeyboard } from "@/hooks/useKeyboard";
 import { useElapsedSeconds } from "@/hooks/useTimer";
 import { WORD_LEN } from "@/lib/constants";
 import { poolForDifficulty } from "@/lib/difficulty";
+import { makeRecordId, saveRecord, type HistoryRecord } from "@/lib/history";
+import { computeScore } from "@/lib/scoring";
 import { buildGuessSet, loadWordsFile, pickRandomAnswer } from "@/lib/wordData";
 import type { WordsFile } from "@/types";
 
@@ -30,6 +34,10 @@ export default function PlayPage() {
     useHint,
     submitBonus,
     skipBonus,
+    openLifeline,
+    declineLifeline,
+    lifelineSuccess,
+    lifelineFail,
     reset,
   } = useGame();
   const [words, setWords] = useState<WordsFile | null>(null);
@@ -72,43 +80,40 @@ export default function PlayPage() {
   );
 
   const bonusRef = useRef<BonusRoundHandle | null>(null);
+  const lifelineRef = useRef<LifelineRoundHandle | null>(null);
 
   const handleSubmit = useCallback(() => {
     onSubmit(validGuessSet);
   }, [onSubmit, validGuessSet]);
 
   const isBonusPhase = state.phase === "bonus";
+  const isLifelinePhase = state.phase === "lifeline";
 
   const handleKey = useCallback(
     (key: string) => {
-      if (isBonusPhase) {
-        bonusRef.current?.pressLetter(key);
-      } else {
-        onKey(key);
-      }
+      if (isBonusPhase) bonusRef.current?.pressLetter(key);
+      else if (isLifelinePhase) lifelineRef.current?.pressLetter(key);
+      else onKey(key);
     },
-    [isBonusPhase, onKey],
+    [isBonusPhase, isLifelinePhase, onKey],
   );
 
   const handleBackspace = useCallback(() => {
-    if (isBonusPhase) {
-      bonusRef.current?.pressBackspace();
-    } else {
-      onBackspace();
-    }
-  }, [isBonusPhase, onBackspace]);
+    if (isBonusPhase) bonusRef.current?.pressBackspace();
+    else if (isLifelinePhase) lifelineRef.current?.pressBackspace();
+    else onBackspace();
+  }, [isBonusPhase, isLifelinePhase, onBackspace]);
 
   const handleEnter = useCallback(() => {
-    if (isBonusPhase) {
-      bonusRef.current?.submit();
-    } else {
-      onSubmit(validGuessSet);
-    }
-  }, [isBonusPhase, onSubmit, validGuessSet]);
+    if (isBonusPhase) bonusRef.current?.submit();
+    else if (isLifelinePhase) lifelineRef.current?.submit();
+    else onSubmit(validGuessSet);
+  }, [isBonusPhase, isLifelinePhase, onSubmit, validGuessSet]);
 
   const handlePlayAgain = useCallback(() => {
     if (!words) return;
     hasInitialized.current = false;
+    savedIdRef.current = null;
     reset();
     setTimeout(() => {
       hasInitialized.current = true;
@@ -116,6 +121,76 @@ export default function PlayPage() {
       init(pickRandomAnswer(pool));
     }, 0);
   }, [words, reset, init, difficulty]);
+
+  const savedIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!state.target) return;
+    if (state.phase !== "results" && state.phase !== "lost") return;
+
+    const lastGuess = state.guesses[state.guesses.length - 1];
+    const solved = lastGuess === state.target.word;
+    const endedAt = solved
+      ? state.solvedAt ?? Date.now()
+      : Date.now();
+    const id =
+      savedIdRef.current ?? makeRecordId(state.target.word, endedAt);
+    savedIdRef.current = id;
+
+    const elapsedMs =
+      state.startedAt != null ? Math.max(0, endedAt - state.startedAt) : 0;
+    const elapsedSeconds = Math.floor(elapsedMs / 1000);
+    const bonusCorrect = state.target.definition.blanks.reduce(
+      (n, b, i) => {
+        const given = (state.bonusAnswers[i] ?? "").trim().toLowerCase();
+        return n + (given.length > 0 && given === b.answer.toLowerCase() ? 1 : 0);
+      },
+      0,
+    );
+    const score = solved
+      ? computeScore({
+          guessCount: state.guesses.length,
+          seconds: elapsedSeconds,
+          bonusCorrect,
+          hintCount: state.hintedBlanks.length,
+        }).total
+      : 0;
+
+    const outcome: HistoryRecord["outcome"] = solved
+      ? state.lifelineGrantedExtra
+        ? "solved_with_lifeline"
+        : "solved"
+      : "lost";
+
+    const record: HistoryRecord = {
+      id,
+      word: state.target.word,
+      definition: state.target.definition,
+      difficulty,
+      outcome,
+      solvedAt: endedAt,
+      elapsedMs,
+      guessCount: state.guesses.length,
+      hintsUsed: state.hintedBlanks.length,
+      lifelineUsed: state.lifelineUsed,
+      bonusCompleted: state.bonusSubmittedAt !== null,
+      bonusAnswers: state.bonusAnswers,
+      score,
+    };
+    saveRecord(record);
+  }, [
+    state.phase,
+    state.bonusSubmittedAt,
+    state.target,
+    state.guesses,
+    state.solvedAt,
+    state.startedAt,
+    state.bonusAnswers,
+    state.hintedBlanks.length,
+    state.lifelineUsed,
+    state.lifelineGrantedExtra,
+    difficulty,
+  ]);
 
   const elapsed = useElapsedSeconds(state.startedAt, state.phase === "playing");
   const solveSeconds =
@@ -133,6 +208,19 @@ export default function PlayPage() {
   const [toast, setToast] = useState<string | null>(null);
   const currentGuessRef = useRef(state.currentGuess);
   currentGuessRef.current = state.currentGuess;
+
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [gridWidth, setGridWidth] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const update = () => setGridWidth(el.getBoundingClientRect().width);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [state.phase]);
 
   useEffect(() => {
     if (state.invalidShakeKey === 0) return;
@@ -177,7 +265,11 @@ export default function PlayPage() {
     );
   }
 
-  const isBonus = isBonusPhase;
+  const centerPhase: "play" | "bonus" | "lifeline" = isBonusPhase
+    ? "bonus"
+    : isLifelinePhase
+      ? "lifeline"
+      : "play";
 
   return (
     <main className="flex h-[100dvh] flex-col overflow-hidden">
@@ -202,17 +294,6 @@ export default function PlayPage() {
         />
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/leaderboard"
-            aria-label="Leaderboard"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text)] transition-all duration-200 hover:border-[color:var(--border-strong)] active:scale-95"
-          >
-            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M4 2h8v3a4 4 0 0 1-8 0V2z" />
-              <path d="M4 3.5H2v1.5a2 2 0 0 0 2 2M12 3.5h2v1.5a2 2 0 0 1-2 2" />
-              <path d="M6.5 9.5h3v2h-3zM5 14h6" />
-            </svg>
-          </Link>
           <ThemeToggle />
         </div>
       </header>
@@ -220,17 +301,19 @@ export default function PlayPage() {
       <section className="relative flex min-h-0 flex-1 flex-col items-center gap-3 px-4 pb-4 pt-1 sm:gap-4 sm:pt-2">
         <Toast message={toast} />
 
-        <AnimatePresence mode="wait" initial={false}>
-          {!isBonus ? (
-            <motion.div
-              key="play"
-              className="flex min-h-0 w-full flex-1 flex-col items-center gap-3 sm:gap-4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25, ease: [0.22, 0.61, 0.36, 1] }}
-            >
-              <div className="w-full shrink-0">
+        <motion.div
+          key={centerPhase}
+          className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-3 sm:gap-4"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28, ease: [0.22, 0.61, 0.36, 1] }}
+        >
+          {centerPhase === "play" && (
+            <>
+              <div
+                className="mx-auto w-full shrink-0"
+                style={gridWidth ? { maxWidth: `${gridWidth}px` } : undefined}
+              >
                 <DefinitionPanel
                   text={state.target.definition.text}
                   blanks={state.target.definition.blanks}
@@ -239,13 +322,10 @@ export default function PlayPage() {
               </div>
               <div className="flex min-h-0 w-full flex-1 items-center justify-center">
                 <div
-                  className="h-full w-auto"
+                  ref={gridRef}
                   style={{
                     aspectRatio: "5 / 6",
-                    // Scale with viewport height so we fill more space on tall
-                    // desktops without ever overflowing the header/keyboard.
-                    maxWidth: "min(42rem, 100%, calc((100dvh - 300px) * 5 / 6))",
-                    maxHeight: "100%",
+                    width: "min(100%, 22rem, calc((100dvh - 400px) * 5 / 6))",
                   }}
                 >
                   <Grid
@@ -256,41 +336,58 @@ export default function PlayPage() {
                   />
                 </div>
               </div>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="bonus"
-              className="flex min-h-0 w-full flex-1 flex-col items-center justify-center"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.3, ease: [0.22, 0.61, 0.36, 1] }}
-            >
-              <BonusRound
-                ref={bonusRef}
-                word={state.target.word}
-                text={state.target.definition.text}
-                blanks={state.target.definition.blanks}
-                startedAt={state.bonusStartedAt}
-                onSubmit={submitBonus}
-                onSkip={skipBonus}
-              />
-            </motion.div>
+            </>
           )}
-        </AnimatePresence>
+          {centerPhase === "bonus" && (
+            <BonusRound
+              ref={bonusRef}
+              word={state.target.word}
+              text={state.target.definition.text}
+              blanks={state.target.definition.blanks}
+              startedAt={state.bonusStartedAt}
+              onSubmit={submitBonus}
+              onSkip={skipBonus}
+            />
+          )}
+          {centerPhase === "lifeline" && (
+            <LifelineRound
+              ref={lifelineRef}
+              word={state.target.word}
+              text={state.target.definition.text}
+              blanks={state.target.definition.blanks}
+              onSuccess={lifelineSuccess}
+              onFail={lifelineFail}
+              onDecline={declineLifeline}
+            />
+          )}
+        </motion.div>
 
-        <div className="w-full max-w-xl shrink-0 px-1">
+        <div className="mx-auto w-full max-w-xl shrink-0 px-1">
           <Keyboard
-            keyStates={isBonus ? {} : state.keyStates}
+            keyStates={centerPhase === "play" ? state.keyStates : {}}
             onKey={handleKey}
             onBackspace={handleBackspace}
             onEnter={handleEnter}
-            disabled={state.phase !== "playing" && state.phase !== "bonus"}
+            disabled={
+              state.phase !== "playing" &&
+              state.phase !== "bonus" &&
+              state.phase !== "lifeline"
+            }
           />
         </div>
       </section>
 
       <AnimatePresence>
+        {state.phase === "lifeline_offer" && state.target && (
+          <LifelineOffer
+            key="lifeline_offer"
+            text={state.target.definition.text}
+            blanks={state.target.definition.blanks}
+            hintedIndices={state.hintedBlanks}
+            onUse={openLifeline}
+            onSkip={declineLifeline}
+          />
+        )}
         {state.phase === "results" && state.target && (
           <ResultsPanel
             key="results"

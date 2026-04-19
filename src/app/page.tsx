@@ -13,7 +13,13 @@ export default function Home() {
         wr<span className="text-[color:var(--accent)]">def</span>
       </Link>
 
-      <div className="fixed right-5 top-5 z-10">
+      <div className="fixed right-5 top-5 z-10 flex items-center gap-3">
+        <Link
+          href="/urdefs"
+          className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--text)]"
+        >
+          urdefs
+        </Link>
         <ThemeToggle />
       </div>
 
@@ -22,31 +28,24 @@ export default function Home() {
           <WordRain />
         </div>
 
-        <p className="mt-5 max-w-[20rem] text-[13px] leading-relaxed text-[color:var(--text-muted)]">
-          Guess the five-letter word from its definition.
+        <p className="mt-6 max-w-[22rem] text-[13px] leading-relaxed text-[color:var(--text-muted)]">
+          A definition. Five letters.
           <br />
-          <span className="text-[color:var(--text)]">Fill in the blanks</span> for bonus points.
+          Guess the word — <span className="text-[color:var(--text)]">fill the blanks</span> for bonus.
+          <br />
+          wordle, but with definitions
         </p>
 
-        <div className="mt-8 flex items-center gap-2.5">
+        <div className="mt-10 flex flex-col items-center gap-5">
+          <DifficultyPicker />
+
           <Link
             href="/play"
-            className="inline-flex h-11 items-center gap-2 rounded-xl bg-[color:var(--accent)] px-5 text-[13px] font-medium text-[color:var(--accent-text)] shadow-[var(--shadow-sm)] transition-transform duration-150 hover:scale-[1.02] active:scale-[0.99]"
+            className="group inline-flex h-12 items-center gap-2.5 rounded-full bg-[color:var(--accent)] px-8 text-[13px] font-semibold uppercase tracking-[0.14em] text-[color:var(--accent-text)] shadow-[var(--shadow-sm)] transition-transform duration-150 hover:scale-[1.03] active:scale-[0.98]"
           >
             <PlayIcon />
             <span>Play</span>
           </Link>
-          <Link
-            href="/leaderboard"
-            className="inline-flex h-11 items-center gap-2 rounded-xl border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-5 text-[13px] font-medium text-[color:var(--text)] transition-colors duration-150 hover:bg-[color:var(--surface-tint)]"
-          >
-            <BarsIcon />
-            <span>Leaderboard</span>
-          </Link>
-        </div>
-
-        <div className="mt-5">
-          <DifficultyPicker />
         </div>
       </div>
 
@@ -83,22 +82,3 @@ function PlayIcon() {
   );
 }
 
-function BarsIcon() {
-  return (
-    <svg
-      viewBox="0 0 14 14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      width="13"
-      height="13"
-      aria-hidden
-      className="shrink-0"
-    >
-      <path d="M3 11.5V8.5" />
-      <path d="M7 11.5V3.5" />
-      <path d="M11 11.5V6" />
-    </svg>
-  );
-}

@@ -162,7 +162,7 @@ function BlankNode({
         ? "border-b-[color:var(--tile-absent)] text-[color:var(--tile-absent)]"
         : "border-b-[color:var(--border-strong)] text-[color:var(--text)]";
 
-  const widthEm = Math.max(3.5, blank.length * 0.68 + 0.8);
+  const widthCh = Math.max(2.5, blank.length + 0.5);
   return (
     <input
       ref={(el) => {
@@ -178,8 +178,8 @@ function BlankNode({
       autoCapitalize="off"
       autoComplete="off"
       aria-label={`Blank ${idx + 1}, ${blank.length} letters`}
-      className={`mx-1 inline-block translate-y-[2px] border-b-2 bg-transparent px-1 text-center text-[16px] font-medium outline-none transition-colors focus:border-b-[color:var(--accent)] disabled:cursor-not-allowed ${colorClass}`}
-      style={{ width: `${widthEm}em` }}
+      className={`mx-[3px] inline-block border-b-2 bg-transparent text-center font-medium align-baseline outline-none transition-colors focus:border-b-[color:var(--accent)] disabled:cursor-not-allowed ${colorClass}`}
+      style={{ width: `${widthCh}ch`, fontSize: "inherit", lineHeight: "inherit" }}
     />
   );
 }

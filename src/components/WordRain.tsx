@@ -1,188 +1,222 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { loadWordsFile } from "@/lib/wordData";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useMemo, useReducer } from "react";
+import { evaluateGuess } from "@/lib/guessEvaluator";
+import type { TileState } from "@/types";
 
-const TYPE_STEP_MS = 150;
-const SUBMIT_PAUSE_MS = 280;
-const HOLD_WRONG_MS = 1100;
-const CORRECTED_HOLD_MS = 900;
-const SETTLE_MS = 550;
-const ERASE_STEP_MS = 70;
-const NEXT_WORD_DELAY_MS = 350;
+type Sequence = { target: string; guesses: string[] };
 
-const FALLBACK_WORDS = [
-  "ember", "haven", "prose", "flint", "oasis", "drift", "noble", "quilt",
-  "mirth", "ivory", "scope", "raven", "latch", "vivid", "ghost", "clasp",
+const SEQUENCES: Sequence[] = [
+  { target: "plane", guesses: ["crane", "plane"] },
+  { target: "storm", guesses: ["stork", "storm"] },
+  { target: "flint", guesses: ["print", "flint"] },
+  { target: "light", guesses: ["least", "light"] },
+  { target: "haven", guesses: ["hover", "haven"] },
+  { target: "noble", guesses: ["noise", "noble"] },
+  { target: "prose", guesses: ["spore", "prose"] },
+  { target: "drift", guesses: ["trick", "drift"] },
+  { target: "quilt", guesses: ["guilt", "quilt"] },
+  { target: "thumb", guesses: ["crumb", "thumb"] },
 ];
 
-const ALPHABET = "abcdefghijklmnopqrstuvwxyz";
+const TYPE_STEP = 110;
+const PRE_REVEAL = 260;
+const REVEAL_STEP = 130;
+const HOLD_MS = 900;
+const MORPH_MS = 380;
+const CELEBRATE_MS = 750;
+const FADE_MS = 450;
+const GAP_MS = 320;
 
-type Phase = "typing" | "holding_wrong" | "corrected" | "settling" | "erasing";
+type Phase =
+  | "typing"
+  | "pre-reveal"
+  | "revealing"
+  | "holding"
+  | "morphing"
+  | "celebrating"
+  | "fading";
 
-function rand(min: number, max: number) {
-  return min + Math.random() * (max - min);
-}
-function randWord(list: string[], avoid?: string): string {
-  for (let i = 0; i < 6; i++) {
-    const w = list[Math.floor(Math.random() * list.length)];
-    if (w !== avoid) return w;
-  }
-  return list[0];
-}
-function pickTypos(word: string): { idxs: Set<number>; chars: Record<number, string> } {
-  const n = Math.random() < 0.4 ? 2 : 1;
-  const idxs = new Set<number>();
-  while (idxs.size < n) idxs.add(Math.floor(Math.random() * word.length));
-  const chars: Record<number, string> = {};
-  idxs.forEach((i) => {
-    let c = ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
-    while (c === word[i]) {
-      c = ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+type State = {
+  seqIdx: number;
+  guessIdx: number;
+  typed: number;
+  phase: Phase;
+  tick: number;
+};
+
+function reducer(state: State, action: { wordLen: number; isLast: boolean }): State {
+  const { phase } = state;
+  if (phase === "typing") {
+    if (state.typed < action.wordLen) {
+      return { ...state, typed: state.typed + 1, tick: state.tick + 1 };
     }
-    chars[i] = c;
-  });
-  return { idxs, chars };
+    return { ...state, phase: "pre-reveal", tick: state.tick + 1 };
+  }
+  if (phase === "pre-reveal") {
+    return { ...state, phase: "revealing", tick: state.tick + 1 };
+  }
+  if (phase === "revealing") {
+    return { ...state, phase: "holding", tick: state.tick + 1 };
+  }
+  if (phase === "holding") {
+    if (action.isLast) {
+      return { ...state, phase: "celebrating", tick: state.tick + 1 };
+    }
+    return { ...state, phase: "morphing", tick: state.tick + 1 };
+  }
+  if (phase === "morphing") {
+    return {
+      ...state,
+      guessIdx: state.guessIdx + 1,
+      phase: "revealing",
+      tick: state.tick + 1,
+    };
+  }
+  if (phase === "celebrating") {
+    return { ...state, phase: "fading", tick: state.tick + 1 };
+  }
+  // fading → advance to next sequence
+  return {
+    seqIdx: (state.seqIdx + 1) % SEQUENCES.length,
+    guessIdx: 0,
+    typed: 0,
+    phase: "typing",
+    tick: state.tick + 1,
+  };
+}
+
+function colorFor(s: TileState): string {
+  if (s === "correct") return "var(--tile-correct)";
+  if (s === "present") return "var(--tile-present)";
+  if (s === "absent") return "var(--text-muted)";
+  return "var(--text)";
 }
 
 export function WordRain() {
-  const [wordList, setWordList] = useState<string[]>(FALLBACK_WORDS);
-  const [word, setWord] = useState<string>("");
-  const [typoChars, setTypoChars] = useState<Record<number, string>>({});
-  const [typoIdxs, setTypoIdxs] = useState<Set<number>>(new Set());
-  const [visible, setVisible] = useState<number>(0);
-  const [phase, setPhase] = useState<Phase>("typing");
-  const wordListRef = useRef<string[]>(FALLBACK_WORDS);
-  const mountedRef = useRef(false);
+  const [state, dispatch] = useReducer(reducer, {
+    seqIdx: 0,
+    guessIdx: 0,
+    typed: 0,
+    phase: "typing" as Phase,
+    tick: 0,
+  });
+
+  const seq = SEQUENCES[state.seqIdx];
+  const currentGuess = seq.guesses[state.guessIdx] ?? "";
+  const isLast = state.guessIdx >= seq.guesses.length - 1;
+
+  const evaluation = useMemo(
+    () => evaluateGuess(currentGuess, seq.target),
+    [currentGuess, seq.target],
+  );
 
   useEffect(() => {
-    wordListRef.current = wordList;
-  }, [wordList]);
+    let delay = 0;
+    if (state.phase === "typing") delay = TYPE_STEP;
+    else if (state.phase === "pre-reveal") delay = PRE_REVEAL;
+    else if (state.phase === "revealing")
+      delay = REVEAL_STEP * currentGuess.length + 120;
+    else if (state.phase === "holding") delay = HOLD_MS;
+    else if (state.phase === "morphing") delay = MORPH_MS;
+    else if (state.phase === "celebrating") delay = CELEBRATE_MS;
+    else if (state.phase === "fading") delay = FADE_MS + GAP_MS;
 
-  useEffect(() => {
-    let cancelled = false;
-    loadWordsFile()
-      .then((f) => {
-        if (cancelled) return;
-        const list =
-          f.answerPool.length > 0
-            ? f.answerPool.map((e) => e.word)
-            : f.validGuesses.length > 0
-              ? f.validGuesses
-              : FALLBACK_WORDS;
-        setWordList(list);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    const timer = setTimeout(() => {
+      dispatch({ wordLen: currentGuess.length, isLast });
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [state.tick, state.phase, currentGuess, isLast]);
 
-  useEffect(() => {
-    if (mountedRef.current) return;
-    mountedRef.current = true;
-    const first = randWord(wordListRef.current);
-    const tp = pickTypos(first);
-    setWord(first);
-    setTypoIdxs(tp.idxs);
-    setTypoChars(tp.chars);
-    setVisible(0);
-    setPhase("typing");
-  }, []);
-
-  useEffect(() => {
-    if (!word) return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    if (phase === "typing") {
-      if (visible < word.length) {
-        timer = setTimeout(() => setVisible((v) => v + 1), TYPE_STEP_MS);
-      } else {
-        timer = setTimeout(() => setPhase("holding_wrong"), SUBMIT_PAUSE_MS);
-      }
-    } else if (phase === "holding_wrong") {
-      timer = setTimeout(() => setPhase("corrected"), HOLD_WRONG_MS);
-    } else if (phase === "corrected") {
-      timer = setTimeout(() => setPhase("settling"), CORRECTED_HOLD_MS);
-    } else if (phase === "settling") {
-      timer = setTimeout(() => setPhase("erasing"), SETTLE_MS);
-    } else if (phase === "erasing") {
-      if (visible > 0) {
-        timer = setTimeout(() => setVisible((v) => v - 1), ERASE_STEP_MS);
-      } else {
-        timer = setTimeout(() => {
-          const next = randWord(wordListRef.current, word);
-          const tp = pickTypos(next);
-          setWord(next);
-          setTypoIdxs(tp.idxs);
-          setTypoChars(tp.chars);
-          setVisible(0);
-          setPhase("typing");
-        }, NEXT_WORD_DELAY_MS);
-      }
-    }
-
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [phase, visible, word]);
-
-  const charAt = (i: number): string => {
-    if (phase === "typing" || phase === "holding_wrong") {
-      return typoIdxs.has(i) ? typoChars[i] ?? word[i] : word[i];
-    }
-    return word[i];
-  };
-
-  const colorAt = (i: number): string | undefined => {
-    const isTypo = typoIdxs.has(i);
-    if (phase === "holding_wrong") {
-      return isTypo ? "var(--tile-present)" : "var(--accent)";
-    }
-    if (phase === "corrected") return "var(--accent)";
-    if (phase === "settling") return isTypo ? "var(--accent)" : undefined;
-    return undefined;
-  };
+  const showColors =
+    state.phase === "revealing" ||
+    state.phase === "holding" ||
+    state.phase === "morphing" ||
+    state.phase === "celebrating" ||
+    state.phase === "fading";
+  const fading = state.phase === "fading";
+  const celebrating = state.phase === "celebrating";
 
   return (
     <div
       className="pointer-events-none block select-none"
       aria-hidden
     >
-      <span
-        className="block font-thin lowercase text-[color:var(--text)]"
-        style={{
-          letterSpacing: "0.02em",
-          lineHeight: "1",
-        }}
+      <motion.span
+        className="inline-flex items-end font-thin lowercase"
+        style={{ letterSpacing: "0.02em", lineHeight: 1 }}
+        animate={{ opacity: fading ? 0 : 1 }}
+        transition={{ duration: FADE_MS / 1000, ease: [0.22, 0.61, 0.36, 1] }}
       >
-        {word.split("").map((_, i) => {
-          if (i >= visible) return null;
-          const color = colorAt(i);
+        {Array.from({ length: currentGuess.length }, (_, i) => {
+          const letter = i < state.typed ? currentGuess[i] : "";
+          const color =
+            showColors && i < state.typed
+              ? colorFor(evaluation[i])
+              : "var(--text)";
+          const revealDelay =
+            state.phase === "revealing" ? (i * REVEAL_STEP) / 1000 : 0;
           return (
             <span
-              key={`${word}-${i}`}
-              style={{
-                color,
-                transition: "color 420ms cubic-bezier(0.4, 0, 0.2, 1)",
-              }}
+              key={`pos-${state.seqIdx}-${i}`}
+              className="relative inline-flex"
+              style={{ width: "0.62em", justifyContent: "center" }}
             >
-              {charAt(i)}
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={letter || "blank"}
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{
+                    duration: 0.24,
+                    ease: [0.22, 0.61, 0.36, 1],
+                  }}
+                  className="inline-block"
+                >
+                  <motion.span
+                    animate={{
+                      color,
+                      y: celebrating ? [0, -6, 0] : 0,
+                      scale: celebrating ? [1, 1.08, 1] : 1,
+                    }}
+                    transition={{
+                      color: { duration: 0.3, delay: revealDelay },
+                      y: {
+                        duration: 0.5,
+                        delay: celebrating ? i * 0.06 : 0,
+                        ease: [0.22, 0.61, 0.36, 1],
+                      },
+                      scale: {
+                        duration: 0.5,
+                        delay: celebrating ? i * 0.06 : 0,
+                        ease: [0.22, 0.61, 0.36, 1],
+                      },
+                    }}
+                    className="inline-block"
+                  >
+                    {letter || "\u00A0"}
+                  </motion.span>
+                </motion.span>
+              </AnimatePresence>
             </span>
           );
         })}
-        {phase === "typing" && visible < word.length && (
-          <span
+        {state.phase === "typing" && state.typed < currentGuess.length && (
+          <motion.span
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0.1, 0.9, 0.1] }}
+            transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
             style={{
               color: "var(--accent)",
               marginLeft: "2px",
-              animation: "blink 1.1s ease-in-out infinite",
             }}
           >
             |
-          </span>
+          </motion.span>
         )}
-      </span>
+      </motion.span>
     </div>
   );
 }

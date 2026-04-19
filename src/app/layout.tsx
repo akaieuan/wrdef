@@ -11,7 +11,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Wrdle — a definition-driven word game",
   description:
-    "Guess the word from its definition. Solve for a bonus round and climb the leaderboard.",
+    "Guess the word from its definition, then fill in the blanks for bonus points.",
 };
 
 const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('wrdle:theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='light';}})();`;
