@@ -100,18 +100,21 @@ function BlankNode({
     if (hinted) return hintedChip(blank.answer);
     return (
       <span
-        className="mx-0.5 inline-flex items-baseline gap-[3px] align-baseline"
+        className="mx-0.5 inline-block align-baseline"
         aria-label={`${blank.length}-letter blank`}
       >
-        {Array.from({ length: blank.length }).map((_, i) => (
-          <span
-            key={i}
-            className="inline-block w-[0.7em] translate-y-[2px] border-b-2 border-[color:var(--border-strong)] text-center"
-            aria-hidden
-          >
-            <span className="invisible">x</span>
-          </span>
-        ))}
+        <span
+          className="inline-block translate-y-[2px] border-b-2 border-[color:var(--border-strong)] font-medium"
+          style={{ width: `${Math.max(blank.length * 0.62, 2)}em` }}
+        >
+          <span className="invisible">{"x".repeat(blank.length)}</span>
+        </span>
+        <sub
+          className="ml-[2px] text-[0.58em] font-semibold text-[color:var(--text-muted)]"
+          aria-hidden
+        >
+          {blank.length}
+        </sub>
       </span>
     );
   }
@@ -132,40 +135,27 @@ function BlankNode({
     const isDone = shown >= blank.answer.length;
     return (
       <span
-        className="mx-0.5 inline-flex items-baseline gap-[3px] align-baseline"
-        aria-label={`Blank ${idx + 1}, ${blank.length} letters`}
+        className={`mx-0.5 inline-block translate-y-[2px] border-b-2 px-0.5 align-baseline font-semibold transition-colors duration-300 ${
+          isDone
+            ? "border-transparent text-[color:var(--accent)]"
+            : "border-[color:var(--border-strong)] text-[color:var(--accent)]"
+        }`}
+        style={{ minWidth: `${Math.max(blank.length * 0.62, 2)}em` }}
       >
-        {Array.from({ length: blank.length }).map((_, i) => {
-          const revealed = i < shown;
-          const isCursorSlot = !isDone && i === shown;
-          return (
-            <span
-              key={i}
-              className={`inline-block w-[0.7em] translate-y-[2px] border-b-2 text-center font-semibold transition-colors duration-200 ${
-                revealed
-                  ? "border-transparent text-[color:var(--accent)]"
-                  : "border-[color:var(--border-strong)] text-[color:var(--accent)]"
-              }`}
-              aria-hidden
-            >
-              {revealed ? (
-                blank.answer[i]
-              ) : isCursorSlot ? (
-                <span
-                  className="inline-block"
-                  style={{
-                    color: "var(--accent)",
-                    animation: "blink 1.05s ease-in-out infinite",
-                  }}
-                >
-                  |
-                </span>
-              ) : (
-                <span className="invisible">x</span>
-              )}
-            </span>
-          );
-        })}
+        {blank.answer.slice(0, shown)}
+        {!isDone && shown > 0 && (
+          <span
+            className="inline-block"
+            style={{
+              color: "var(--accent)",
+              marginLeft: "1px",
+              animation: "blink 1.05s ease-in-out infinite",
+            }}
+          >
+            |
+          </span>
+        )}
+        {shown === 0 && <span className="invisible">{"x".repeat(blank.length)}</span>}
       </span>
     );
   }
