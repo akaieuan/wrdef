@@ -1,4 +1,5 @@
 import type { HistoryRecord } from "./history";
+import type { Difficulty } from "./difficulty";
 
 export type Stats = {
   gamesPlayed: number;
@@ -11,6 +12,9 @@ export type Stats = {
   totalScore: number;
   bestScore: number;
   bonusCompletionRate: number;
+  byDifficulty: Record<Difficulty, { wins: number; plays: number }>;
+  /** Most-recent-first list of outcome flags (true = win). */
+  recentOutcomes: boolean[];
 };
 
 function isWin(r: HistoryRecord): boolean {
@@ -31,6 +35,12 @@ export function computeStats(records: HistoryRecord[]): Stats {
       totalScore: 0,
       bestScore: 0,
       bonusCompletionRate: 0,
+      byDifficulty: {
+        easy: { wins: 0, plays: 0 },
+        medium: { wins: 0, plays: 0 },
+        hard: { wins: 0, plays: 0 },
+      },
+      recentOutcomes: [],
     };
   }
 
@@ -71,6 +81,23 @@ export function computeStats(records: HistoryRecord[]): Stats {
   const bonusDone = winRecords.filter((r) => r.bonusCompleted).length;
   const bonusCompletionRate = bonusEligible > 0 ? bonusDone / bonusEligible : 0;
 
+  const byDifficulty: Record<Difficulty, { wins: number; plays: number }> = {
+    easy: { wins: 0, plays: 0 },
+    medium: { wins: 0, plays: 0 },
+    hard: { wins: 0, plays: 0 },
+  };
+  for (const r of records) {
+    const bucket = byDifficulty[r.difficulty];
+    if (!bucket) continue;
+    bucket.plays += 1;
+    if (isWin(r)) bucket.wins += 1;
+  }
+
+  const recentOutcomes = [...chronological]
+    .reverse()
+    .slice(0, 12)
+    .map((r) => isWin(r));
+
   return {
     gamesPlayed,
     wins,
@@ -82,6 +109,8 @@ export function computeStats(records: HistoryRecord[]): Stats {
     totalScore,
     bestScore,
     bonusCompletionRate,
+    byDifficulty,
+    recentOutcomes,
   };
 }
 

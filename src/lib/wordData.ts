@@ -1,4 +1,5 @@
-import type { WordEntry, WordsFile } from "@/types";
+import { resolveEntry, type Difficulty } from "./difficulty";
+import type { RawWordEntry, WordEntry, WordsFile } from "@/types";
 
 let cached: WordsFile | null = null;
 let inflight: Promise<WordsFile> | null = null;
@@ -23,10 +24,13 @@ export async function loadWordsFile(): Promise<WordsFile> {
   return inflight;
 }
 
-export function pickRandomAnswer(pool: WordEntry[]): WordEntry {
+export function pickRandomAnswer(
+  pool: RawWordEntry[],
+  difficulty: Difficulty,
+): WordEntry {
   if (pool.length === 0) throw new Error("empty answer pool");
   const idx = Math.floor(Math.random() * pool.length);
-  return pool[idx];
+  return resolveEntry(pool[idx], difficulty);
 }
 
 export function buildGuessSet(validGuesses: string[]): Set<string> {

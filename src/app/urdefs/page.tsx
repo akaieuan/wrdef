@@ -44,38 +44,16 @@ export default function UrDefsPage() {
       </header>
 
       <div className="mx-auto mt-10 w-full max-w-xl">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--text-muted)]">
-          Your definitions
-        </p>
-        <h1 className="mt-1 text-[28px] font-light tracking-[-0.01em] text-[color:var(--text)]">
+        <h1 className="text-[28px] font-light tracking-[-0.01em] text-[color:var(--text)]">
           urdefs
         </h1>
         <p className="mt-2 max-w-md text-[13px] leading-relaxed text-[color:var(--text-muted)]">
-          Every word you&apos;ve unlocked lives here — on this device, no sign-in.
+          Every word you&apos;ve unlocked lives here. On this device, no sign-in.
         </p>
       </div>
 
-      <section className="mx-auto mt-8 grid w-full max-w-xl grid-cols-3 gap-2 sm:grid-cols-6">
-        <StatCell label="Plays" value={stats.gamesPlayed.toString()} />
-        <StatCell label="Wins" value={stats.wins.toString()} />
-        <StatCell
-          label="Win rate"
-          value={stats.gamesPlayed ? formatPct(stats.winRate) : "—"}
-        />
-        <StatCell
-          label="Streak"
-          value={stats.currentStreak.toString()}
-          sub={stats.bestStreak ? `best ${stats.bestStreak}` : undefined}
-        />
-        <StatCell
-          label="Best time"
-          value={stats.bestSeconds != null ? formatDuration(stats.bestSeconds) : "—"}
-        />
-        <StatCell
-          label="Score"
-          value={stats.totalScore.toLocaleString()}
-          sub={stats.bestScore ? `best ${stats.bestScore}` : undefined}
-        />
+      <section className="mx-auto mt-8 w-full max-w-xl">
+        <StatsCard stats={stats} />
       </section>
 
       <section className="mx-auto mt-10 w-full max-w-xl">
@@ -97,31 +75,162 @@ export default function UrDefsPage() {
   );
 }
 
-function StatCell({
+function StatsCard({ stats }: { stats: ReturnType<typeof computeStats> }) {
+  const hasPlays = stats.gamesPlayed > 0;
+  const winsCount = stats.wins;
+  const padded = [
+    ...stats.recentOutcomes,
+    ...Array(Math.max(0, 12 - stats.recentOutcomes.length)).fill(null),
+  ].slice(0, 12) as (boolean | null)[];
+
+  return (
+    <div>
+      <div className="flex items-baseline gap-3">
+        <span className="text-[64px] font-light leading-none tabular-nums text-[color:var(--text)] sm:text-[72px]">
+          {winsCount}
+        </span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--text-muted)]">
+          definitions
+          <br />
+          unlocked
+        </span>
+      </div>
+
+      <div className="mt-5 flex items-center gap-[5px]" aria-label="Recent plays">
+        {padded.map((o, i) => (
+          <span
+            key={i}
+            className="inline-block h-2.5 flex-1 rounded-full"
+            style={{
+              background:
+                o === true
+                  ? "var(--tile-correct)"
+                  : o === false
+                    ? "var(--tile-absent)"
+                    : "var(--border)",
+              opacity: o === null ? 0.45 : 1,
+            }}
+            aria-label={
+              o === null ? "no play" : o ? "win" : "loss"
+            }
+          />
+        ))}
+      </div>
+      <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-[color:var(--text-muted)]">
+        last 12 · most recent right
+      </p>
+
+      <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-3 text-left">
+        <Line
+          big={hasPlays ? formatPct(stats.winRate) : "—"}
+          label="win rate"
+          small={hasPlays ? `${stats.wins} / ${stats.gamesPlayed} played` : ""}
+        />
+        <Line
+          big={stats.currentStreak.toString()}
+          label="current streak"
+          small={stats.bestStreak ? `best ${stats.bestStreak}` : ""}
+        />
+        <Line
+          big={
+            stats.bestSeconds != null ? formatDuration(stats.bestSeconds) : "—"
+          }
+          label="fastest solve"
+          small={
+            stats.avgSeconds != null ? `avg ${formatDuration(stats.avgSeconds)}` : ""
+          }
+        />
+        <Line
+          big={stats.totalScore.toLocaleString()}
+          label="total score"
+          small={stats.bestScore ? `best ${stats.bestScore}` : ""}
+        />
+      </div>
+
+      {hasPlays && (
+        <div className="mt-6 border-t border-[color:var(--border)] pt-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--text-muted)]">
+            By mode
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px]">
+            <DiffBadge
+              label="Easy"
+              wins={stats.byDifficulty.easy.wins}
+              plays={stats.byDifficulty.easy.plays}
+              color="var(--tile-correct)"
+            />
+            <DiffBadge
+              label="Medium"
+              wins={stats.byDifficulty.medium.wins}
+              plays={stats.byDifficulty.medium.plays}
+              color="var(--tile-present)"
+            />
+            <DiffBadge
+              label="Hard"
+              wins={stats.byDifficulty.hard.wins}
+              plays={stats.byDifficulty.hard.plays}
+              color="#8E3B7A"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Line({
+  big,
   label,
-  value,
-  sub,
+  small,
 }: {
+  big: string;
   label: string;
-  value: string;
-  sub?: string;
+  small?: string;
 }) {
   return (
-    <div className="flex flex-col items-start rounded-[12px] border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
-      <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-[color:var(--text-muted)]">
+    <div className="flex flex-col">
+      <span className="text-[22px] font-semibold leading-none tabular-nums text-[color:var(--text)]">
+        {big}
+      </span>
+      <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[color:var(--text-muted)]">
         {label}
       </span>
-      <span className="mt-1 text-[18px] font-semibold tabular-nums text-[color:var(--text)]">
-        {value}
-      </span>
-      {sub && (
-        <span className="mt-0.5 text-[10px] text-[color:var(--text-muted)]">
-          {sub}
+      {small && (
+        <span className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">
+          {small}
         </span>
       )}
     </div>
   );
 }
+
+function DiffBadge({
+  label,
+  wins,
+  plays,
+  color,
+}: {
+  label: string;
+  wins: number;
+  plays: number;
+  color: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        className="inline-block h-2 w-2 rounded-full"
+        style={{ background: color }}
+        aria-hidden
+      />
+      <span className="text-[color:var(--text)]">{label}</span>
+      <span className="tabular-nums text-[color:var(--text-muted)]">
+        {wins}
+        <span className="text-[color:var(--text-muted)]">/{plays}</span>
+      </span>
+    </span>
+  );
+}
+
 
 function WinRow({ record }: { record: HistoryRecord }) {
   const seconds = Math.round(record.elapsedMs / 1000);

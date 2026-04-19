@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Wrdle — a definition-driven word game",
+  title: "wrdef · wordle, but with definitions",
   description:
     "Guess the word from its definition, then fill in the blanks for bonus points.",
 };

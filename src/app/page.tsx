@@ -29,9 +29,7 @@ export default function Home() {
         </div>
 
         <p className="mt-6 max-w-[22rem] text-[13px] leading-relaxed text-[color:var(--text-muted)]">
-          A definition. Five letters.
-          <br />
-          Guess the word — <span className="text-[color:var(--text)]">fill the blanks</span> for bonus.
+          Guess the word. <span className="text-[color:var(--text)]">Fill the blanks</span> for bonus.
           <br />
           wordle, but with definitions
         </p>

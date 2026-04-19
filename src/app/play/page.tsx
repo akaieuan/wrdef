@@ -71,7 +71,7 @@ export default function PlayPage() {
     }
     hasInitialized.current = true;
     const pool = poolForDifficulty(words.answerPool, difficulty);
-    init(pickRandomAnswer(pool));
+    init(pickRandomAnswer(pool, difficulty));
   }, [words, difficultyReady, difficulty, init]);
 
   const validGuessSet = useMemo(
@@ -118,7 +118,7 @@ export default function PlayPage() {
     setTimeout(() => {
       hasInitialized.current = true;
       const pool = poolForDifficulty(words.answerPool, difficulty);
-      init(pickRandomAnswer(pool));
+      init(pickRandomAnswer(pool, difficulty));
     }, 0);
   }, [words, reset, init, difficulty]);
 

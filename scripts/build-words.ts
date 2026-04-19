@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import Papa from "papaparse";
 import pLimit from "p-limit";
 import { pickBlanks } from "../src/lib/keywordBlanker";
-import type { WordEntry, WordsFile } from "../src/types";
+import type { RawWordEntry, WordDefinition, WordsFile } from "../src/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -25,9 +25,39 @@ type FetchResult = Cached | RateLimited;
 
 type DictEntry = {
   meanings?: Array<{
+    partOfSpeech?: string;
     definitions?: Array<{ definition?: string }>;
   }>;
 };
+
+// The senses you actually want as game clues. Verbs/nouns/adjectives/adverbs
+// are what people reach for when explaining a word to a friend.
+const PREFERRED_POS = new Set([
+  "verb",
+  "noun",
+  "adjective",
+  "adverb",
+]);
+
+// Function words and labels that rarely make satisfying definitions for a
+// word-guessing game. If a word has a preferred POS entry, we'll use it;
+// these are only picked if nothing else is available.
+const DEPRIORITIZED_POS = new Set([
+  "interjection",
+  "exclamation",
+  "abbreviation",
+  "contraction",
+  "article",
+  "determiner",
+  "preposition",
+  "conjunction",
+  "particle",
+  "pronoun",
+  "prefix",
+  "suffix",
+  "letter",
+  "symbol",
+]);
 
 async function pathExists(p: string): Promise<boolean> {
   try {
@@ -128,60 +158,136 @@ const SPICY_PREFIX = new RegExp(
   "i",
 );
 
-function scoreDef(text: string, idxInList: number): number {
-  const len = text.length;
+type Candidate = {
+  text: string;
+  posIdx: number;
+  senseIdx: number;
+  pos: string;
+  flagged: boolean;
+};
+
+function posRank(pos: string): number {
+  if (PREFERRED_POS.has(pos)) return 0;
+  if (DEPRIORITIZED_POS.has(pos)) return 2;
+  return 1;
+}
+
+// Scoring is dominated by *sense ordering* so we reach for the primary
+// meaning (which dictionaries list first), with length as a tiebreaker.
+// Previously length dominated, which gave us things like `check → "A
+// situation in which the king is directly threatened by an opposing piece"`
+// because that definition happened to hit the char-count sweet spot while
+// the common "to inspect/verify" sense was shorter.
+function scoreDef(c: Candidate): number {
+  const len = c.text.length;
+
+  if (len < 20 || len > 380) return Number.NEGATIVE_INFINITY;
+
   let score = 0;
-  if (len >= 80 && len <= 260) {
-    // Sweet spot; peak near 180 chars
-    score += 100 - Math.min(80, Math.abs(len - 180)) * 0.4;
-  } else if (len >= 40 && len <= 320) {
-    score += 40;
-  } else if (len >= 20 && len <= 360) {
-    score += 10;
-  } else {
-    return Number.NEGATIVE_INFINITY;
-  }
-  // Earlier senses are usually the primary ones — light preference
-  score -= idxInList * 6;
+
+  // Mild preference for a readable length, peaked around 110 chars.
+  const centerDist = Math.abs(len - 110);
+  score += 30 - Math.min(30, centerDist * 0.12);
+
+  // Part-of-speech bias. Verbs/nouns first.
+  const rank = posRank(c.pos);
+  if (rank === 0) score += 50;
+  else if (rank === 2) score -= 80;
+
+  // Sense ordering: the FIRST sense of the FIRST POS block is almost always
+  // the primary meaning. Penalties here dominate the length tiebreaker.
+  score -= c.posIdx * 70;
+  score -= c.senseIdx * 22;
+
+  if (c.flagged) score -= 40;
+
   return score;
 }
 
-function pickDefinition(data: unknown, target: string): string | null {
-  if (!Array.isArray(data)) return null;
+// Up to this many definitions per word, ranked from most-primary (rank 0) to
+// most-obscure. The game routes ranks to difficulty tiers: rank 0 → easy, the
+// middle → medium, the last → hard. Words with fewer ranks fall back to the
+// lowest available rank.
+const MAX_DEFS_PER_WORD = 3;
+
+// Soft blocklist for flat-out bad definition content (e.g. see-other-entry
+// redirects that sometimes sneak through).
+const BAD_DEF_PATTERNS = [
+  /^see\s+[a-z]+$/i,
+  /^alternative\s+(form|spelling)\s+of/i,
+  /^obsolete\s+form\s+of/i,
+  /^misspelling\s+of/i,
+  /^archaic\s+form\s+of/i,
+];
+
+function isBadDef(text: string): boolean {
+  return BAD_DEF_PATTERNS.some((re) => re.test(text));
+}
+
+function pickRankedDefinitions(
+  data: unknown,
+  target: string,
+): WordDefinition[] {
+  if (!Array.isArray(data)) return [];
   const targetRe = new RegExp(`\\b${target}\\b`, "i");
 
-  type Cand = { text: string; idx: number; flagged: boolean };
-  const candidates: Cand[] = [];
-  let idx = 0;
+  const candidates: Candidate[] = [];
+
   for (const entry of data as DictEntry[]) {
+    let posIdx = 0;
     for (const meaning of entry.meanings ?? []) {
+      const pos = (meaning.partOfSpeech ?? "").toLowerCase();
+      let senseIdx = 0;
       for (const def of meaning.definitions ?? []) {
         const text = def.definition?.trim();
         if (!text) continue;
-        if (targetRe.test(text)) {
-          idx++;
+        if (targetRe.test(text) || isBadDef(text)) {
+          senseIdx++;
           continue;
         }
-        candidates.push({ text, idx, flagged: SPICY_PREFIX.test(text) });
-        idx++;
+        candidates.push({
+          text,
+          posIdx,
+          senseIdx,
+          pos,
+          flagged: SPICY_PREFIX.test(text),
+        });
+        senseIdx++;
       }
+      posIdx++;
     }
   }
-  if (candidates.length === 0) return null;
+  if (candidates.length === 0) return [];
 
   const clean = candidates.filter((c) => !c.flagged);
   const pool = clean.length > 0 ? clean : candidates;
 
-  let best: Cand | null = null;
-  let bestScore = Number.NEGATIVE_INFINITY;
-  for (const c of pool) {
-    const s = scoreDef(c.text, c.idx);
-    if (s > bestScore) {
-      best = c;
-      bestScore = s;
-    }
+  // Score + sort candidates from most-primary to least.
+  type Scored = { cand: Candidate; score: number };
+  const scored: Scored[] = pool
+    .map((cand) => ({ cand, score: scoreDef(cand) }))
+    .filter((s) => s.score !== Number.NEGATIVE_INFINITY)
+    .sort((a, b) => b.score - a.score);
+
+  if (scored.length === 0) return [];
+
+  // Greedy pick: take the best scoring definition that also passes the
+  // keyword-blanker, then the next-best that is meaningfully different, etc.
+  const picked: WordDefinition[] = [];
+  for (const { cand } of scored) {
+    if (picked.length >= MAX_DEFS_PER_WORD) break;
+    const blanks = pickBlanks(cand.text, target);
+    if (!blanks.ok) continue;
+    // Skip duplicates or near-duplicates of already-picked definitions.
+    if (picked.some((p) => p.text === cand.text)) continue;
+    picked.push({
+      text: cand.text,
+      blanks: blanks.blanks,
+      primaryRank: picked.length,
+    });
   }
-  return best && bestScore !== Number.NEGATIVE_INFINITY ? best.text : null;
+
+  return picked;
 }
 
 async function main() {
@@ -229,10 +335,11 @@ async function main() {
 
   const limit = pLimit(1);
   let done = 0;
-  let dropped = { noDef: 0, fewBlanks: 0, rateLimited: 0 };
+  const dropped = { noDef: 0, fewBlanks: 0, rateLimited: 0 };
+  const defCountHistogram: Record<number, number> = { 1: 0, 2: 0, 3: 0 };
 
   console.log("→ fetching definitions (cached per-word)");
-  const results: Array<WordEntry | null> = await Promise.all(
+  const results: Array<RawWordEntry | null> = await Promise.all(
     answerCandidates.map((c) =>
       limit(async () => {
         let cached: Cached | null = await readCache(c.word);
@@ -257,27 +364,24 @@ async function main() {
           dropped.noDef++;
           return null;
         }
-        const defText = pickDefinition(cached.data, c.word);
-        if (!defText) {
-          dropped.noDef++;
-          return null;
-        }
-        const blanks = pickBlanks(defText, c.word);
-        if (!blanks.ok) {
+        const definitions = pickRankedDefinitions(cached.data, c.word);
+        if (definitions.length === 0) {
           dropped.fewBlanks++;
           return null;
         }
+        defCountHistogram[definitions.length] =
+          (defCountHistogram[definitions.length] ?? 0) + 1;
         return {
           word: c.word,
           occurrence: c.occurrence,
-          definition: { text: defText, blanks: blanks.blanks },
-        } satisfies WordEntry;
+          definitions,
+        } satisfies RawWordEntry;
       }),
     ),
   );
 
-  const answerPool: WordEntry[] = results.filter(
-    (r): r is WordEntry => r !== null,
+  const answerPool: RawWordEntry[] = results.filter(
+    (r): r is RawWordEntry => r !== null,
   );
 
   const uniqueValidGuesses = [...new Set(validGuesses)].sort();
@@ -296,6 +400,9 @@ async function main() {
   console.log(`  dropped few blanks : ${dropped.fewBlanks}`);
   console.log(`  rate-limited       : ${dropped.rateLimited} (rerun to retry)`);
   console.log(`  final answerPool   : ${answerPool.length}`);
+  console.log(`  with 1 def         : ${defCountHistogram[1] ?? 0}`);
+  console.log(`  with 2 defs        : ${defCountHistogram[2] ?? 0}`);
+  console.log(`  with 3 defs        : ${defCountHistogram[3] ?? 0}`);
   console.log(`  valid guesses      : ${uniqueValidGuesses.length}`);
   console.log(`  output             : ${OUT_PATH}`);
 

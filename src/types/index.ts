@@ -6,6 +6,29 @@ export type Blank = {
   answer: string;
 };
 
+export type WordDefinition = {
+  text: string;
+  blanks: Blank[];
+  /**
+   * 0 = most primary sense (first sense of first POS block), higher = more obscure.
+   * Used to route definitions to difficulty modes.
+   */
+  primaryRank: number;
+};
+
+/**
+ * A word as stored in words.json. May have 1–3 ranked definitions.
+ */
+export type RawWordEntry = {
+  word: string;
+  occurrence: number;
+  definitions: WordDefinition[];
+};
+
+/**
+ * A word as consumed by the game at runtime — one definition already picked
+ * based on the player's selected difficulty.
+ */
 export type WordEntry = {
   word: string;
   occurrence: number;
@@ -17,7 +40,7 @@ export type WordEntry = {
 
 export type WordsFile = {
   generatedAt: string;
-  answerPool: WordEntry[];
+  answerPool: RawWordEntry[];
   validGuesses: string[];
 };
 
