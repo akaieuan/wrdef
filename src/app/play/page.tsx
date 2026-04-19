@@ -339,9 +339,10 @@ export default function PlayPage() {
               <div className="flex min-h-0 w-full flex-1 items-center justify-center">
                 <div
                   ref={gridRef}
+                  className="h-full max-h-full"
                   style={{
                     aspectRatio: "5 / 6",
-                    width: "min(100%, 22rem, calc((100dvh - 400px) * 5 / 6))",
+                    maxWidth: "22rem",
                   }}
                 >
                   <Grid

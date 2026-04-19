@@ -15,7 +15,7 @@ export function DefinitionPanel({ text, blanks, hintedIndices }: Props) {
       text={text}
       blanks={blanks}
       mode={{ kind: "masked", hintedIndices }}
-      className="text-center text-[14px] leading-[1.95] text-[color:var(--text-muted)] sm:text-[15px] sm:leading-[2.05]"
+      className="text-center text-[13px] leading-[1.7] text-[color:var(--text-muted)] sm:text-[14px] sm:leading-[1.75]"
     />
   );
 }
