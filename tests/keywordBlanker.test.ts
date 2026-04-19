@@ -30,13 +30,27 @@ describe("pickBlanks", () => {
     }
   });
 
-  it("does not pick words containing the target", () => {
+  it("force-blanks every token that shares a stem with the target", () => {
     const text = "A houseboat is a small boat used as a house by people.";
     const result = pickBlanks(text, "house");
+    expect(result.ok).toBe(true);
     if (result.ok) {
-      for (const b of result.blanks) {
-        expect(b.answer.toLowerCase()).not.toContain("house");
-      }
+      const answers = result.blanks.map((b) => b.answer.toLowerCase());
+      // Both the target itself AND its compound "houseboat" must be hidden —
+      // leaving either visible hands the player the answer.
+      expect(answers).toContain("house");
+      expect(answers).toContain("houseboat");
+    }
+  });
+
+  it("force-blanks morphological variants (abort / abortion)", () => {
+    const text =
+      "To suddenly stop a process; the doctor performed an abortion to end the pregnancy.";
+    const result = pickBlanks(text, "abort");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const answers = result.blanks.map((b) => b.answer.toLowerCase());
+      expect(answers).toContain("abortion");
     }
   });
 
