@@ -26,7 +26,7 @@ type FetchResult = Cached | RateLimited;
 type DictEntry = {
   meanings?: Array<{
     partOfSpeech?: string;
-    definitions?: Array<{ definition?: string }>;
+    definitions?: Array<{ definition?: string; example?: string }>;
   }>;
 };
 
@@ -164,6 +164,7 @@ type Candidate = {
   senseIdx: number;
   pos: string;
   flagged: boolean;
+  example?: string;
 };
 
 function posRank(pos: string): number {
@@ -278,8 +279,11 @@ function isNsfwDef(text: string): boolean {
 function pickRankedDefinitions(
   data: unknown,
   target: string,
-): WordDefinition[] {
-  if (!Array.isArray(data)) return [];
+): {
+  definitions: WordDefinition[];
+  extraExamples: Array<{ example: string; definition: string }>;
+} {
+  if (!Array.isArray(data)) return { definitions: [], extraExamples: [] };
   const targetRe = new RegExp(`\\b${target}\\b`, "i");
 
   const candidates: Candidate[] = [];
@@ -296,19 +300,26 @@ function pickRankedDefinitions(
           senseIdx++;
           continue;
         }
+        const rawExample = def.example?.trim();
+        // Drop examples that leak NSFW content (e.g. a tame sense paired with
+        // a racy example sentence). The definition stays; the sentence round
+        // just won't have this distractor available.
+        const example =
+          rawExample && !isNsfwDef(rawExample) ? rawExample : undefined;
         candidates.push({
           text,
           posIdx,
           senseIdx,
           pos,
           flagged: SPICY_PREFIX.test(text),
+          example,
         });
         senseIdx++;
       }
       posIdx++;
     }
   }
-  if (candidates.length === 0) return [];
+  if (candidates.length === 0) return { definitions: [], extraExamples: [] };
 
   const clean = candidates.filter((c) => !c.flagged);
   const pool = clean.length > 0 ? clean : candidates;
@@ -320,25 +331,50 @@ function pickRankedDefinitions(
     .filter((s) => s.score !== Number.NEGATIVE_INFINITY)
     .sort((a, b) => b.score - a.score);
 
-  if (scored.length === 0) return [];
+  if (scored.length === 0) return { definitions: [], extraExamples: [] };
 
   // Greedy pick: take the best scoring definition that also passes the
   // keyword-blanker, then the next-best that is meaningfully different, etc.
   const picked: WordDefinition[] = [];
+  const skipped: Candidate[] = [];
   for (const { cand } of scored) {
-    if (picked.length >= MAX_DEFS_PER_WORD) break;
+    if (picked.length >= MAX_DEFS_PER_WORD) {
+      skipped.push(cand);
+      continue;
+    }
     const blanks = pickBlanks(cand.text, target);
-    if (!blanks.ok) continue;
+    if (!blanks.ok) {
+      skipped.push(cand);
+      continue;
+    }
     // Skip duplicates or near-duplicates of already-picked definitions.
     if (picked.some((p) => p.text === cand.text)) continue;
     picked.push({
       text: cand.text,
       blanks: blanks.blanks,
       primaryRank: picked.length,
+      example: cand.example,
     });
   }
 
-  return picked;
+  // Harvest example sentences from every sense that didn't land in the top 3
+  // — these become distractor material for the sentence round so words with
+  // thin top-sense example coverage can still qualify. Each carries its
+  // source definition so the reveal can explain what sense it illustrated.
+  const pickedExamples = new Set(
+    picked.map((p) => p.example).filter((e): e is string => !!e),
+  );
+  const seenExtra = new Set<string>();
+  const extraExamples: Array<{ example: string; definition: string }> = [];
+  for (const cand of skipped) {
+    if (!cand.example) continue;
+    if (pickedExamples.has(cand.example)) continue;
+    if (seenExtra.has(cand.example)) continue;
+    seenExtra.add(cand.example);
+    extraExamples.push({ example: cand.example, definition: cand.text });
+  }
+
+  return { definitions: picked, extraExamples };
 }
 
 async function main() {
@@ -415,7 +451,10 @@ async function main() {
           dropped.noDef++;
           return null;
         }
-        const definitions = pickRankedDefinitions(cached.data, c.word);
+        const { definitions, extraExamples } = pickRankedDefinitions(
+          cached.data,
+          c.word,
+        );
         if (definitions.length === 0) {
           dropped.fewBlanks++;
           return null;
@@ -426,6 +465,7 @@ async function main() {
           word: c.word,
           occurrence: c.occurrence,
           definitions,
+          ...(extraExamples.length > 0 ? { extraExamples } : {}),
         } satisfies RawWordEntry;
       }),
     ),

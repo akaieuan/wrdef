@@ -12,6 +12,12 @@ export type Stats = {
   totalScore: number;
   bestScore: number;
   bonusCompletionRate: number;
+  /** Wins where the sentence round was both offered AND answered (not skipped). */
+  sentencesAttempted: number;
+  /** Of attempted sentence rounds, how many were correct. */
+  sentencesCorrect: number;
+  /** Correct / attempted. null if never attempted. */
+  sentenceAccuracy: number | null;
   byDifficulty: Record<Difficulty, { wins: number; plays: number }>;
   /** Most-recent-first list of outcome flags (true = win). */
   recentOutcomes: boolean[];
@@ -35,6 +41,9 @@ export function computeStats(records: HistoryRecord[]): Stats {
       totalScore: 0,
       bestScore: 0,
       bonusCompletionRate: 0,
+      sentencesAttempted: 0,
+      sentencesCorrect: 0,
+      sentenceAccuracy: null,
       byDifficulty: {
         easy: { wins: 0, plays: 0 },
         medium: { wins: 0, plays: 0 },
@@ -81,6 +90,14 @@ export function computeStats(records: HistoryRecord[]): Stats {
   const bonusDone = winRecords.filter((r) => r.bonusCompleted).length;
   const bonusCompletionRate = bonusEligible > 0 ? bonusDone / bonusEligible : 0;
 
+  const sentenceAttempts = winRecords.filter((r) => r.sentenceAnswered === true);
+  const sentencesAttempted = sentenceAttempts.length;
+  const sentencesCorrect = sentenceAttempts.filter(
+    (r) => r.sentenceCorrect === true,
+  ).length;
+  const sentenceAccuracy =
+    sentencesAttempted > 0 ? sentencesCorrect / sentencesAttempted : null;
+
   const byDifficulty: Record<Difficulty, { wins: number; plays: number }> = {
     easy: { wins: 0, plays: 0 },
     medium: { wins: 0, plays: 0 },
@@ -109,6 +126,9 @@ export function computeStats(records: HistoryRecord[]): Stats {
     totalScore,
     bestScore,
     bonusCompletionRate,
+    sentencesAttempted,
+    sentencesCorrect,
+    sentenceAccuracy,
     byDifficulty,
     recentOutcomes,
   };

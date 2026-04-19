@@ -17,6 +17,8 @@ type Props = {
   bonusCompleted: boolean;
   hintsUsed: number;
   hintedIndices: number[];
+  sentenceAnswered: boolean;
+  sentenceCorrect: boolean;
   onPlayAgain: () => void;
 };
 
@@ -29,6 +31,8 @@ export function ResultsPanel({
   bonusCompleted,
   hintsUsed,
   hintedIndices,
+  sentenceAnswered,
+  sentenceCorrect,
   onPlayAgain,
 }: Props) {
   const blanks: Blank[] = target.definition.blanks;
@@ -47,6 +51,7 @@ export function ResultsPanel({
     guessCount: didSolve ? guessCount : 0,
     seconds: elapsedSeconds,
     bonusCorrect: didSolve ? bonusCorrect : 0,
+    sentenceCorrect: didSolve && sentenceCorrect,
     hintCount: hintsUsed,
   });
 
@@ -93,6 +98,13 @@ export function ResultsPanel({
                   label={`Bonus · ${bonusCorrect}/${blanks.length}`}
                   value={score.bonus}
                   accent={bonusCorrect > 0}
+                />
+              )}
+              {target.sentenceChoices && sentenceAnswered && (
+                <Row
+                  label={`Sentence · ${sentenceCorrect ? "correct" : "wrong"}`}
+                  value={score.sentence}
+                  accent={sentenceCorrect}
                 />
               )}
               {hintsUsed > 0 && (

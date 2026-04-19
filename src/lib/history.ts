@@ -20,6 +20,14 @@ export type HistoryRecord = {
   bonusCompleted: boolean;
   bonusAnswers: string[];
   score: number;
+  /**
+   * Sentence round telemetry. All optional because (a) old records predate
+   * this field and (b) many words don't qualify for the sentence round at
+   * all, so it may never have been offered.
+   */
+  sentenceOffered?: boolean;
+  sentenceAnswered?: boolean;
+  sentenceCorrect?: boolean;
 };
 
 const KEY = "wrdef:history:v1";

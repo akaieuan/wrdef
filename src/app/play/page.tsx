@@ -11,6 +11,7 @@ import { Keyboard } from "@/components/Keyboard";
 import { LifelineOffer } from "@/components/LifelineOffer";
 import { LifelineRound, type LifelineRoundHandle } from "@/components/LifelineRound";
 import { ResultsPanel } from "@/components/ResultsPanel";
+import { SentenceRound } from "@/components/SentenceRound";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Toast } from "@/components/Toast";
 import { useDifficulty } from "@/hooks/useDifficulty";
@@ -34,6 +35,8 @@ export default function PlayPage() {
     useHint,
     submitBonus,
     skipBonus,
+    submitSentence,
+    skipSentence,
     openLifeline,
     declineLifeline,
     lifelineSuccess,
@@ -152,6 +155,7 @@ export default function PlayPage() {
           guessCount: state.guesses.length,
           seconds: elapsedSeconds,
           bonusCorrect,
+          sentenceCorrect: state.sentenceCorrect,
           hintCount: state.hintedBlanks.length,
         }).total
       : 0;
@@ -161,6 +165,8 @@ export default function PlayPage() {
         ? "solved_with_lifeline"
         : "solved"
       : "lost";
+
+    const sentenceOffered = !!state.target.sentenceChoices;
 
     const record: HistoryRecord = {
       id,
@@ -176,6 +182,9 @@ export default function PlayPage() {
       bonusCompleted: state.bonusSubmittedAt !== null,
       bonusAnswers: state.bonusAnswers,
       score,
+      sentenceOffered,
+      sentenceAnswered: sentenceOffered ? state.sentenceAnswered : undefined,
+      sentenceCorrect: sentenceOffered ? state.sentenceCorrect : undefined,
     };
     saveRecord(record);
   }, [
@@ -189,6 +198,8 @@ export default function PlayPage() {
     state.hintedBlanks.length,
     state.lifelineUsed,
     state.lifelineGrantedExtra,
+    state.sentenceAnswered,
+    state.sentenceCorrect,
     difficulty,
   ]);
 
@@ -265,11 +276,14 @@ export default function PlayPage() {
     );
   }
 
-  const centerPhase: "play" | "bonus" | "lifeline" = isBonusPhase
+  const isSentencePhase = state.phase === "sentence";
+  const centerPhase: "play" | "bonus" | "lifeline" | "sentence" = isBonusPhase
     ? "bonus"
     : isLifelinePhase
       ? "lifeline"
-      : "play";
+      : isSentencePhase
+        ? "sentence"
+        : "play";
 
   return (
     <main className="flex h-[100dvh] flex-col overflow-hidden">
@@ -281,9 +295,11 @@ export default function PlayPage() {
           >
             ← Home
           </Link>
-          <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--text-muted)] tabular-nums">
-            {elapsed}s
-          </span>
+          {state.phase === "playing" && state.startedAt !== null && (
+            <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--text-muted)] tabular-nums">
+              {elapsed}s
+            </span>
+          )}
         </div>
 
         <HintButton
@@ -360,21 +376,32 @@ export default function PlayPage() {
               onDecline={declineLifeline}
             />
           )}
+          {centerPhase === "sentence" && state.target.sentenceChoices && (
+            <SentenceRound
+              word={state.target.word}
+              definitionText={state.target.definition.text}
+              choices={state.target.sentenceChoices}
+              onSubmit={submitSentence}
+              onSkip={skipSentence}
+            />
+          )}
         </motion.div>
 
-        <div className="mx-auto w-full max-w-xl shrink-0 px-1">
-          <Keyboard
-            keyStates={centerPhase === "play" ? state.keyStates : {}}
-            onKey={handleKey}
-            onBackspace={handleBackspace}
-            onEnter={handleEnter}
-            disabled={
-              state.phase !== "playing" &&
-              state.phase !== "bonus" &&
-              state.phase !== "lifeline"
-            }
-          />
-        </div>
+        {centerPhase !== "sentence" && (
+          <div className="mx-auto w-full max-w-xl shrink-0 px-1">
+            <Keyboard
+              keyStates={centerPhase === "play" ? state.keyStates : {}}
+              onKey={handleKey}
+              onBackspace={handleBackspace}
+              onEnter={handleEnter}
+              disabled={
+                state.phase !== "playing" &&
+                state.phase !== "bonus" &&
+                state.phase !== "lifeline"
+              }
+            />
+          </div>
+        )}
       </section>
 
       <AnimatePresence>
@@ -400,6 +427,8 @@ export default function PlayPage() {
             bonusCompleted={state.bonusSubmittedAt !== null}
             hintsUsed={state.hintedBlanks.length}
             hintedIndices={state.hintedBlanks}
+            sentenceAnswered={state.sentenceAnswered}
+            sentenceCorrect={state.sentenceCorrect}
             onPlayAgain={handlePlayAgain}
           />
         )}
@@ -415,6 +444,8 @@ export default function PlayPage() {
             bonusCompleted={false}
             hintsUsed={state.hintedBlanks.length}
             hintedIndices={state.hintedBlanks}
+            sentenceAnswered={false}
+            sentenceCorrect={false}
             onPlayAgain={handlePlayAgain}
           />
         )}

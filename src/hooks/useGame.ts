@@ -21,6 +21,11 @@ export type GameState = {
   invalidShakeKey: number;
   lifelineUsed: boolean;
   lifelineGrantedExtra: boolean;
+  sentenceStartedAt: number | null;
+  sentenceSubmittedAt: number | null;
+  sentencePickedIdx: number | null;
+  sentenceAnswered: boolean;
+  sentenceCorrect: boolean;
 };
 
 export type GameAction =
@@ -33,6 +38,8 @@ export type GameAction =
   | { type: "SUBMIT_BONUS"; answers: string[] }
   | { type: "FINISH_BONUS" }
   | { type: "SKIP_BONUS" }
+  | { type: "SUBMIT_SENTENCE"; pickedIdx: number }
+  | { type: "SKIP_SENTENCE" }
   | { type: "OPEN_LIFELINE" }
   | { type: "DECLINE_LIFELINE" }
   | { type: "LIFELINE_SUCCESS" }
@@ -56,7 +63,21 @@ function initialState(): GameState {
     invalidShakeKey: 0,
     lifelineUsed: false,
     lifelineGrantedExtra: false,
+    sentenceStartedAt: null,
+    sentenceSubmittedAt: null,
+    sentencePickedIdx: null,
+    sentenceAnswered: false,
+    sentenceCorrect: false,
   };
+}
+
+/**
+ * After a solve or bonus exit, go to the sentence round if this word has
+ * multiple-choice sentence options available — otherwise straight to results.
+ */
+function phaseAfterBonus(target: WordEntry | null): Phase {
+  if (target?.sentenceChoices) return "sentence";
+  return "results";
 }
 
 function maxGuesses(state: GameState): number {
@@ -160,7 +181,7 @@ function reducer(state: GameState, action: GameAction): GameState {
       const phase: Phase = solved
         ? eligibleForBonus
           ? "bonus"
-          : "results"
+          : phaseAfterBonus(state.target)
         : outOfGuesses
           ? state.lifelineUsed
             ? "lost"
@@ -189,26 +210,64 @@ function reducer(state: GameState, action: GameAction): GameState {
 
     case "SUBMIT_BONUS": {
       if (state.phase !== "bonus") return state;
+      const nextPhase = phaseAfterBonus(state.target);
       return {
         ...state,
         bonusAnswers: action.answers,
         bonusSubmittedAt: Date.now(),
-        phase: "results",
+        phase: nextPhase,
+        sentenceStartedAt:
+          nextPhase === "sentence" ? Date.now() : state.sentenceStartedAt,
       };
     }
 
     case "FINISH_BONUS": {
       if (state.phase !== "bonus") return state;
+      const nextPhase = phaseAfterBonus(state.target);
       return {
         ...state,
         bonusSubmittedAt: Date.now(),
-        phase: "results",
+        phase: nextPhase,
+        sentenceStartedAt:
+          nextPhase === "sentence" ? Date.now() : state.sentenceStartedAt,
       };
     }
 
     case "SKIP_BONUS": {
       if (state.phase !== "won" && state.phase !== "bonus") return state;
-      return { ...state, phase: "results" };
+      const nextPhase = phaseAfterBonus(state.target);
+      return {
+        ...state,
+        phase: nextPhase,
+        sentenceStartedAt:
+          nextPhase === "sentence" ? Date.now() : state.sentenceStartedAt,
+      };
+    }
+
+    case "SUBMIT_SENTENCE": {
+      if (state.phase !== "sentence" || !state.target?.sentenceChoices) {
+        return state;
+      }
+      const correctIdx = state.target.sentenceChoices.correctIdx;
+      return {
+        ...state,
+        phase: "results",
+        sentenceSubmittedAt: Date.now(),
+        sentencePickedIdx: action.pickedIdx,
+        sentenceAnswered: true,
+        sentenceCorrect: action.pickedIdx === correctIdx,
+      };
+    }
+
+    case "SKIP_SENTENCE": {
+      if (state.phase !== "sentence") return state;
+      return {
+        ...state,
+        phase: "results",
+        sentenceSubmittedAt: Date.now(),
+        sentenceAnswered: false,
+        sentenceCorrect: false,
+      };
     }
 
     case "RESET":
@@ -247,6 +306,14 @@ export function useGame() {
   );
   const finishBonus = useCallback(() => dispatch({ type: "FINISH_BONUS" }), []);
   const skipBonus = useCallback(() => dispatch({ type: "SKIP_BONUS" }), []);
+  const submitSentence = useCallback(
+    (pickedIdx: number) => dispatch({ type: "SUBMIT_SENTENCE", pickedIdx }),
+    [],
+  );
+  const skipSentence = useCallback(
+    () => dispatch({ type: "SKIP_SENTENCE" }),
+    [],
+  );
   const openLifeline = useCallback(() => dispatch({ type: "OPEN_LIFELINE" }), []);
   const declineLifeline = useCallback(
     () => dispatch({ type: "DECLINE_LIFELINE" }),
@@ -273,6 +340,8 @@ export function useGame() {
     submitBonus,
     finishBonus,
     skipBonus,
+    submitSentence,
+    skipSentence,
     openLifeline,
     declineLifeline,
     lifelineSuccess,

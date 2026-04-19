@@ -5,4 +5,5 @@ export const TIME_BONUS_CAP_SECONDS = 60;
 export const SOLVE_POINTS_BY_GUESS = [500, 400, 300, 200, 100, 50];
 export const TIME_BONUS_MULTIPLIER = 1;
 export const BONUS_KEYWORD_POINTS = 100;
+export const SENTENCE_POINTS = 150;
 export const HINT_COST = 50;

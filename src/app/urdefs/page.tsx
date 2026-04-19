@@ -145,6 +145,19 @@ function StatsCard({ stats }: { stats: ReturnType<typeof computeStats> }) {
           label="total score"
           small={stats.bestScore ? `best ${stats.bestScore}` : ""}
         />
+        <Line
+          big={
+            stats.sentenceAccuracy != null
+              ? formatPct(stats.sentenceAccuracy)
+              : "—"
+          }
+          label="sentence accuracy"
+          small={
+            stats.sentencesAttempted > 0
+              ? `${stats.sentencesCorrect} / ${stats.sentencesAttempted} picked`
+              : ""
+          }
+        />
       </div>
 
       {hasPlays && (
@@ -269,7 +282,7 @@ function WinRow({ record }: { record: HistoryRecord }) {
         />
       </div>
 
-      <div className="mt-3 flex items-center gap-3 text-[10px] uppercase tracking-[0.18em] text-[color:var(--text-muted)]">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] uppercase tracking-[0.18em] text-[color:var(--text-muted)]">
         <span>{formatDate(record.solvedAt)}</span>
         <span>·</span>
         <span>{record.guessCount}/6</span>
@@ -289,6 +302,26 @@ function WinRow({ record }: { record: HistoryRecord }) {
         >
           {record.bonusCompleted ? "Bonus filled" : "Bonus skipped"}
         </span>
+        {record.sentenceOffered && (
+          <>
+            <span>·</span>
+            <span
+              style={{
+                color: !record.sentenceAnswered
+                  ? "var(--text-muted)"
+                  : record.sentenceCorrect
+                    ? "var(--tile-correct)"
+                    : "var(--tile-absent)",
+              }}
+            >
+              {!record.sentenceAnswered
+                ? "Sentence skipped"
+                : record.sentenceCorrect
+                  ? "Sentence ✓"
+                  : "Sentence ✗"}
+            </span>
+          </>
+        )}
       </div>
     </article>
   );

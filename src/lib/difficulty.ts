@@ -1,4 +1,10 @@
-import type { RawWordEntry, WordDefinition, WordEntry } from "@/types";
+import type {
+  RawWordEntry,
+  SentenceChoices,
+  SentenceOption,
+  WordDefinition,
+  WordEntry,
+} from "@/types";
 
 export type Difficulty = "easy" | "medium" | "hard";
 
@@ -54,6 +60,72 @@ export function resolveEntry(
     word: entry.word,
     occurrence: entry.occurrence,
     definition: { text: def.text, blanks: def.blanks },
+    sentenceChoices: buildSentenceChoices(entry, def),
+  };
+}
+
+/**
+ * Build the 3-option multiple-choice for the post-solve sentence round.
+ *
+ * Returns undefined when we can't assemble 3 distinct sentences:
+ * - the chosen sense has no example → nothing to test
+ * - fewer than 2 other examples exist on this word → no distractors
+ *
+ * Distractor pool = example sentences from this word's *other* senses (the
+ * ones in `definitions` the player didn't see, plus any harvested in
+ * `extraExamples` that didn't make the top-3 cut at build time). Same-word
+ * distractors are the pedagogical win — the player has to identify the
+ * specific sense they just learned, not just the word itself.
+ */
+function buildSentenceChoices(
+  entry: RawWordEntry,
+  picked: WordDefinition,
+): SentenceChoices | undefined {
+  const correctText = picked.example?.trim();
+  if (!correctText) return undefined;
+
+  const correct: SentenceOption = {
+    text: correctText,
+    sourceDefinition: picked.text,
+  };
+
+  const candidates: SentenceOption[] = [];
+  const seen = new Set([correctText]);
+
+  for (const d of entry.definitions) {
+    const ex = d.example?.trim();
+    if (!ex || seen.has(ex)) continue;
+    candidates.push({ text: ex, sourceDefinition: d.text });
+    seen.add(ex);
+  }
+  for (const extra of entry.extraExamples ?? []) {
+    const ex = extra.example.trim();
+    if (!ex || seen.has(ex)) continue;
+    candidates.push({ text: ex, sourceDefinition: extra.definition });
+    seen.add(ex);
+  }
+
+  if (candidates.length < 2) return undefined;
+
+  // Prefer distractors of a similar length so one option doesn't stand out as
+  // obviously different. Cheap proxy: sort by absolute length delta, take 2.
+  const byCloseness = [...candidates].sort(
+    (a, b) =>
+      Math.abs(a.text.length - correctText.length) -
+      Math.abs(b.text.length - correctText.length),
+  );
+  const distractors = byCloseness.slice(0, 2);
+
+  // Fisher–Yates shuffle so the correct answer isn't always at index 0.
+  const options: SentenceOption[] = [correct, ...distractors];
+  for (let i = options.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [options[i], options[j]] = [options[j], options[i]];
+  }
+
+  return {
+    options,
+    correctIdx: options.findIndex((o) => o.text === correctText),
   };
 }
 
