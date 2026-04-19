@@ -29,7 +29,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
 
 function Sun() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
       <circle cx="8" cy="8" r="3" />
       <path d="M8 1.5v1.5M8 13v1.5M1.5 8h1.5M13 8h1.5M3.4 3.4l1.06 1.06M11.54 11.54l1.06 1.06M3.4 12.6l1.06-1.06M11.54 4.46l1.06-1.06" />
     </svg>
@@ -38,7 +38,7 @@ function Sun() {
 
 function Moon() {
   return (
-    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
       <path d="M7.5 1.5a6.5 6.5 0 1 0 7 7 5 5 0 0 1-7-7z" />
     </svg>
   );
