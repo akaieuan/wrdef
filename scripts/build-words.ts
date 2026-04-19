@@ -224,6 +224,57 @@ function isBadDef(text: string): boolean {
   return BAD_DEF_PATTERNS.some((re) => re.test(text));
 }
 
+// Explicit sexual/anatomical terms that make a definition unfit for a casual
+// word game, no matter how the source tagged it. SPICY_PREFIX handles entries
+// the dictionary itself labels (slang)/(vulgar)/(taboo), but some senses come
+// in as plain text — e.g. "woody" rank 2 = "an erection of the penis". We
+// match whole words case-insensitively and drop the sense outright. If every
+// sense of a word is NSFW, the whole word falls out of the answer pool.
+const NSFW_TERMS = [
+  "penis",
+  "penises",
+  "vagina",
+  "vaginas",
+  "vaginal",
+  "genital",
+  "genitals",
+  "genitalia",
+  "erection",
+  "erections",
+  "masturbate",
+  "masturbation",
+  "orgasm",
+  "orgasms",
+  "ejaculate",
+  "ejaculation",
+  "semen",
+  "intercourse",
+  "copulation",
+  "copulate",
+  "testicle",
+  "testicles",
+  "testicular",
+  "scrotum",
+  "scrotal",
+  "clitoris",
+  "clitoral",
+  "vulva",
+  "labia",
+  "anus",
+  "sodomy",
+  "sodomize",
+  "fornicate",
+  "fornication",
+  "coitus",
+  "coital",
+  "pubic",
+];
+const NSFW_RE = new RegExp(`\\b(?:${NSFW_TERMS.join("|")})\\b`, "i");
+
+function isNsfwDef(text: string): boolean {
+  return NSFW_RE.test(text);
+}
+
 function pickRankedDefinitions(
   data: unknown,
   target: string,
@@ -241,7 +292,7 @@ function pickRankedDefinitions(
       for (const def of meaning.definitions ?? []) {
         const text = def.definition?.trim();
         if (!text) continue;
-        if (targetRe.test(text) || isBadDef(text)) {
+        if (targetRe.test(text) || isBadDef(text) || isNsfwDef(text)) {
           senseIdx++;
           continue;
         }
