@@ -147,7 +147,7 @@ export const BonusRound = forwardRef<BonusRoundHandle, Props>(function BonusRoun
           inputRefs,
           disabled: submitted,
         }}
-        className="text-left text-[15px] leading-[1.7] text-[color:var(--text)] sm:text-[16px]"
+        className="text-left text-[16px] leading-[1.7] text-[color:var(--text)]"
       />
 
       <div className="mt-5 h-1 w-full overflow-hidden rounded-full bg-[color:var(--border)]">

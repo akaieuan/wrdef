@@ -59,6 +59,11 @@
   --radius-pill: 999px;
 }
 
+@utility pt-safe { padding-top: max(env(safe-area-inset-top), 0px); }
+@utility pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
+@utility pl-safe { padding-left: max(env(safe-area-inset-left), 0px); }
+@utility pr-safe { padding-right: max(env(safe-area-inset-right), 0px); }
+
 html, body {
   height: 100%;
 }

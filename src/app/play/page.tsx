@@ -287,7 +287,7 @@ export default function PlayPage() {
 
   return (
     <main className="flex h-[100dvh] flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center justify-between px-5 py-4">
+      <header className="flex shrink-0 items-center justify-between pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] pt-[max(1rem,env(safe-area-inset-top))] pb-4">
         <div className="flex items-center gap-3">
           <Link
             href="/"
@@ -314,7 +314,7 @@ export default function PlayPage() {
         </div>
       </header>
 
-      <section className="relative flex min-h-0 flex-1 flex-col items-center gap-3 px-4 pb-4 pt-1 sm:gap-4 sm:pt-2">
+      <section className="relative flex min-h-0 flex-1 flex-col items-center gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1 sm:gap-4 sm:pt-2">
         <Toast message={toast} />
 
         <motion.div

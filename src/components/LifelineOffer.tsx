@@ -21,7 +21,7 @@ export function LifelineOffer({
 }: Props) {
   return (
     <motion.div
-      className="fixed inset-0 z-40 flex items-center justify-center px-5 py-8 backdrop-blur-sm"
+      className="fixed inset-0 z-40 flex items-center justify-center px-5 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] backdrop-blur-sm"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.25 }}

@@ -128,7 +128,7 @@ export const LifelineRound = forwardRef<LifelineRoundHandle, Props>(
             disabled: result !== "pending",
             revealCorrect: correctFlags,
           }}
-          className="text-left text-[15px] leading-[1.7] text-[color:var(--text)] sm:text-[16px]"
+          className="text-left text-[16px] leading-[1.7] text-[color:var(--text)]"
         />
 
         <div className="mt-5 flex w-full flex-col items-center gap-2">

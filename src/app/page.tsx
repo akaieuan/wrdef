@@ -8,12 +8,12 @@ export default function Home() {
     <main className="relative flex min-h-[100dvh] flex-col items-center justify-center px-6">
       <Link
         href="/"
-        className="fixed left-5 top-5 z-10 text-[26px] font-light tracking-[0.02em] text-[color:var(--text)]"
+        className="fixed left-[max(20px,env(safe-area-inset-left))] top-[max(20px,env(safe-area-inset-top))] z-10 text-[26px] font-light tracking-[0.02em] text-[color:var(--text)]"
       >
         wr<span className="text-[color:var(--accent)]">def</span>
       </Link>
 
-      <div className="fixed right-5 top-5 z-10 flex items-center gap-3">
+      <div className="fixed right-[max(20px,env(safe-area-inset-right))] top-[max(20px,env(safe-area-inset-top))] z-10 flex items-center gap-3">
         <Link
           href="/urdefs"
           className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--text)]"
@@ -47,7 +47,7 @@ export default function Home() {
         </div>
       </div>
 
-      <footer className="absolute bottom-6 z-10 flex flex-col items-center gap-1 text-[11px] text-[color:var(--text-muted)]">
+      <footer className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-10 flex flex-col items-center gap-1 text-[11px] text-[color:var(--text-muted)]">
         <span>word · definition</span>
         <a
           href="https://aka4uh.com"
