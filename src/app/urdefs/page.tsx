@@ -32,7 +32,7 @@ export default function UrDefsPage() {
   const stats = useMemo(() => computeStats(records), [records]);
 
   return (
-    <main className="relative flex min-h-[100dvh] flex-col px-5 pb-16 pt-5">
+    <main className="relative flex min-h-[100dvh] flex-col pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(4rem,env(safe-area-inset-bottom))]">
       <header className="mx-auto flex w-full max-w-xl items-center justify-between">
         <Link
           href="/"
@@ -44,16 +44,28 @@ export default function UrDefsPage() {
       </header>
 
       <div className="mx-auto mt-10 w-full max-w-xl">
-        <h1 className="text-[28px] font-light tracking-[-0.01em] text-[color:var(--text)]">
-          urdefs
-        </h1>
+        <div className="flex items-baseline justify-between gap-4">
+          <h1 className="text-[28px] font-light tracking-[-0.01em] text-[color:var(--text)]">
+            urdefs
+          </h1>
+          <div className="flex items-baseline gap-2">
+            <span className="text-[40px] font-light leading-none tabular-nums text-[color:var(--text)] sm:text-[48px]">
+              {stats.wins}
+            </span>
+            <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[color:var(--text-muted)]">
+              definitions
+              <br />
+              unlocked
+            </span>
+          </div>
+        </div>
         <p className="mt-2 max-w-md text-[13px] leading-relaxed text-[color:var(--text-muted)]">
           Every word you&apos;ve unlocked lives here. On this device, no sign-in.
         </p>
       </div>
 
       <section className="mx-auto mt-8 w-full max-w-xl">
-        <StatsCard stats={stats} />
+        <StatsCard stats={stats} records={records} />
       </section>
 
       <section className="mx-auto mt-10 w-full max-w-xl">
@@ -75,49 +87,20 @@ export default function UrDefsPage() {
   );
 }
 
-function StatsCard({ stats }: { stats: ReturnType<typeof computeStats> }) {
+function StatsCard({
+  stats,
+  records,
+}: {
+  stats: ReturnType<typeof computeStats>;
+  records: HistoryRecord[];
+}) {
   const hasPlays = stats.gamesPlayed > 0;
-  const winsCount = stats.wins;
-  const padded = [
-    ...stats.recentOutcomes,
-    ...Array(Math.max(0, 12 - stats.recentOutcomes.length)).fill(null),
-  ].slice(0, 12) as (boolean | null)[];
 
   return (
     <div>
-      <div className="flex items-baseline gap-3">
-        <span className="text-[64px] font-light leading-none tabular-nums text-[color:var(--text)] sm:text-[72px]">
-          {winsCount}
-        </span>
-        <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--text-muted)]">
-          definitions
-          <br />
-          unlocked
-        </span>
-      </div>
-
-      <div className="mt-5 flex items-center gap-[5px]" aria-label="Recent plays">
-        {padded.map((o, i) => (
-          <span
-            key={i}
-            className="inline-block h-2.5 flex-1 rounded-full"
-            style={{
-              background:
-                o === true
-                  ? "var(--tile-correct)"
-                  : o === false
-                    ? "var(--tile-absent)"
-                    : "var(--border)",
-              opacity: o === null ? 0.45 : 1,
-            }}
-            aria-label={
-              o === null ? "no play" : o ? "win" : "loss"
-            }
-          />
-        ))}
-      </div>
+      <ContributionGrid records={records} />
       <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-[color:var(--text-muted)]">
-        last 12 · most recent right
+        last 3 weeks · plays per day
       </p>
 
       <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-3 text-left">
@@ -189,6 +172,76 @@ function StatsCard({ stats }: { stats: ReturnType<typeof computeStats> }) {
       )}
     </div>
   );
+}
+
+const GRID_WEEKS = 3;
+
+function ContributionGrid({ records }: { records: HistoryRecord[] }) {
+  const cells = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayMs = today.getTime();
+
+    const counts = new Map<string, number>();
+    for (const r of records) {
+      const d = new Date(r.solvedAt);
+      d.setHours(0, 0, 0, 0);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    const todayDay = today.getDay();
+    const origin = new Date(today);
+    origin.setDate(origin.getDate() - todayDay - (GRID_WEEKS - 1) * 7);
+
+    const out: Array<{ key: string; count: number; isFuture: boolean; label: string }> = [];
+    for (let week = 0; week < GRID_WEEKS; week++) {
+      for (let day = 0; day < 7; day++) {
+        const d = new Date(origin);
+        d.setDate(d.getDate() + week * 7 + day);
+        const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        const count = counts.get(key) ?? 0;
+        const isFuture = d.getTime() > todayMs;
+        out.push({
+          key,
+          count,
+          isFuture,
+          label: isFuture
+            ? "future"
+            : `${d.toDateString()} · ${count} ${count === 1 ? "play" : "plays"}`,
+        });
+      }
+    }
+    return out;
+  }, [records]);
+
+  return (
+    <div
+      className="mt-5 grid w-full gap-[6px]"
+      style={{ gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}
+      role="img"
+      aria-label={`Plays per day, last ${GRID_WEEKS} weeks`}
+    >
+      {cells.map((c) => (
+        <span
+          key={c.key}
+          title={c.label}
+          aria-label={c.label}
+          className="aspect-square rounded-[8px]"
+          style={{ background: intensityColor(c.count, c.isFuture) }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function intensityColor(count: number, isFuture: boolean): string {
+  if (isFuture) return "transparent";
+  if (count === 0) return "var(--border)";
+  if (count === 1) return "color-mix(in srgb, var(--accent) 30%, transparent)";
+  if (count <= 3) return "color-mix(in srgb, var(--accent) 55%, transparent)";
+  if (count <= 5) return "color-mix(in srgb, var(--accent) 80%, transparent)";
+  return "var(--accent)";
 }
 
 function Line({
